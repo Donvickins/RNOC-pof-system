@@ -1,10 +1,11 @@
-#include "yolo.hpp"
+#include "Yolo.hpp"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <thread>
 
 int main()
 {
@@ -24,7 +25,7 @@ int main()
     const int MAX_INIT_ATTEMPTS = 3;
     bool webcam_initialized = false;
     HARDWARE_INFO hw_info;
-    detectSystemArch(hw_info);
+    checkGPU(hw_info);
 
     LOG("Device: " << hw_info.gpu_name);
     if (hw_info.has_cuda)

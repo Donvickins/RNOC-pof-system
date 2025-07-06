@@ -1,5 +1,6 @@
+#if (WIN32)
 #include "dxdiag.hpp"
-#include "yolo.hpp"
+#include "Yolo.hpp"
 #include "utils.hpp"
 #include <cstdlib>
 
@@ -32,7 +33,7 @@ int main()
 
     HARDWARE_INFO hw_info;
 
-    detectSystemArch(hw_info);
+    checkGPU(hw_info);
     // Log detected hardware
     LOG("Hardware Detection Summary:");
     LOG("CUDA Available: " << (hw_info.has_cuda ? "Yes" : "No"));
@@ -43,9 +44,9 @@ int main()
 
     while (!quit)
     {
-        DXGIContext ctx;
+        DG::DXGIContext ctx;
         LOG("Attempting to initialize DXGI...");
-        if (!InitializeDXGI(ctx))
+        if (!DG::InitializeDXGI(ctx))
         {
             LOG_ERR("DXGI Initialization failed. Retrying in 2 seconds...");
             std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -73,12 +74,12 @@ int main()
         while (duplication_active && !quit)
         {
             auto startTime = std::chrono::high_resolution_clock::now();
-            if (!GetScreenPixelsDXGI(ctx.pDesktopDupl, ctx.pDevice, ctx.pImmediateContext, width, height, pixelBuffer))
+            if (!DG::GetScreenPixelsDXGI(ctx.pDesktopDupl, ctx.pDevice, ctx.pImmediateContext, width, height, pixelBuffer))
             {
                 DXGI_OUTDUPL_FRAME_INFO frameInfoCheck;
                 IDXGIResource *resourceCheck = nullptr;
                 HRESULT checkHr = ctx.pDesktopDupl->AcquireNextFrame(0, &frameInfoCheck, &resourceCheck);
-                SafeRelease(&resourceCheck);
+                DG::SafeRelease(&resourceCheck);
 
                 if (checkHr == DXGI_ERROR_ACCESS_LOST)
                 {
@@ -162,7 +163,7 @@ int main()
             }
         }
         LOG("Cleaning up DXGI context for this session.");
-        CleanupDXGI(ctx);
+        DG::CleanupDXGI(ctx);
         // yolo_net = cv::dnn::Net(); // Optionally clear the network object if it's large and reloaded.
         // setupYoloNetwork will reassign it anyway.
         if (!quit && !duplication_active) // If exited inner loop due to error, not user quit
@@ -175,3 +176,5 @@ int main()
     cv::destroyAllWindows(); // Ensure OpenCV windows are closed
     return 0;
 }
+
+#endif

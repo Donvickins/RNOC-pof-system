@@ -1,4 +1,4 @@
-#include "yolo.hpp"
+#include "Yolo.hpp"
 
 bool loadClassNames(const std::string &path, std::vector<std::string> &class_names_out)
 {

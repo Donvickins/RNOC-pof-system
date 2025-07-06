@@ -2,21 +2,22 @@
   "name": "ai-agent",
   "version": "1.0.0",
   "description": "A C++ project for AI agent for automating tasks",
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "dependencies": [
     {
       "name": "opencv",
       "features": [
+        "highgui",
         "contrib",
+        "cuda",
+        "cudnn",
         "dnn",
-        "opencl"
+        "opencl",
+        "ade",
+        "dnn-cuda",
+        "ffmpeg",
+        "world"
       ]
-    }
-  ],
-  "default-features": [],
-  "overrides": [
-    {
-      "name": "opencv",
-      "version": "4.11.0"
     }
   ]
 }

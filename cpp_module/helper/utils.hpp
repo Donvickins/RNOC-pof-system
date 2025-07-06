@@ -6,7 +6,7 @@
 #include <opencv2/core/ocl.hpp>
 
 #define LOG(...) std::cout << "[INFO] " << __VA_ARGS__ << std::endl;
-#define LOG_ERR(...) std::cout << "[ERROR] " << __VA_ARGS__ << std::endl;
+#define LOG_ERR(...) std::cerr << "[ERROR] " << __VA_ARGS__ << std::endl;
 
 struct HARDWARE_INFO
 {
@@ -20,4 +20,6 @@ struct HARDWARE_INFO
 };
 
 bool setUpEnv();
-void detectSystemArch(HARDWARE_INFO &hw_info);
+void checkGPU(HARDWARE_INFO &hw_info);
+bool supportedWindowingSystem();
+std::string GetTimestampString();

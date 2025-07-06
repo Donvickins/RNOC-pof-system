@@ -1,5 +1,11 @@
 #include "utils.hpp"
 
+#ifdef _WIN32
+#include <cstdlib>
+#else
+#include <stdlib.h>
+#endif
+
 bool setUpEnv()
 {
     std::filesystem::path opencv_kernel = std::filesystem::current_path() / "kernel_cache";
@@ -8,21 +14,29 @@ bool setUpEnv()
     {
         if (!std::filesystem::create_directory(opencv_kernel))
         {
-            LOG_ERR("Creating Kernel Cache Directory");
+            LOG_ERR("Create Kernel Cache Failed");
             return false;
         }
-    }
 
-    if (_putenv_s("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str()) != 0)
-    {
-        LOG_ERR("SET Kernel Cache ENV Failed");
-        return false;
+#ifdef _WIN32
+        if (_putenv_s("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str()) != 0)
+        {
+            LOG_ERR("SET Kernel Cache ENV Failed");
+            return false;
+        }
+#else
+        if (setenv("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str(), 1) != 0)
+        {
+            LOG_ERR("SET Kernel Cache ENV Failed");
+            return false;
+        }
+#endif
     }
 
     return true;
 }
 
-void detectSystemArch(HARDWARE_INFO &hw_info)
+void checkGPU(HARDWARE_INFO &hw_info)
 {
     // Check CUDA (NVIDIA)
     try
@@ -65,4 +79,40 @@ void detectSystemArch(HARDWARE_INFO &hw_info)
             }
         }
     }
+}
+bool supportedWindowingSystem()
+{
+    if (const char *wayland_display = getenv("WAYLAND_DISPLAY"); wayland_display != nullptr)
+    {
+        LOG("Wayland display detected");
+        return true;
+    }
+    else if (const char *x11_display = getenv("DISPLAY"); x11_display != nullptr)
+    {
+        LOG("X11 display detected");
+        return true;
+    }
+    else
+    {
+        LOG_ERR("No Wayland or X11 display found");
+        return false;
+    }
+
+    if (const char *XDG_SESSION_TYPE = getenv("XDG_SESSION_TYPE"); XDG_SESSION_TYPE != nullptr)
+    {
+        LOG("XDG_SESSION_TYPE: " << XDG_SESSION_TYPE);
+    }
+    else
+    {
+        LOG_ERR("XDG_SESSION_TYPE not set");
+    }
+}
+
+std::string GetTimestampString()
+{
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S");
+    return ss.str();
 }

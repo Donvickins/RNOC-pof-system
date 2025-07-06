@@ -1,9 +1,12 @@
 cpp_module/vcpkg_installed/
 cpp_module/build/
-cpp_module/dependencies/
+cpp_module/deps/
 cpp_module/models/
 cpp_module/ai-agent.exe
 cpp_module/agent_webcam.exe
+cpp_module/agent_screenshot
+cpp_module/agent_screenshot.exe
+cpp_module/screenshots
 cpp_module/opencv_kernel/
 cpp_module/kernel_cache/
 python_module/venv/
