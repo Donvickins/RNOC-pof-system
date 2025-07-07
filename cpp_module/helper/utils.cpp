@@ -45,7 +45,6 @@ void checkGPU(HARDWARE_INFO &hw_info)
         {
             hw_info.has_cuda = true;
             hw_info.has_nvidia = true;
-            cv::cuda::printCudaDeviceInfo(0);
         }
     }
     catch (const cv::Exception &e)
@@ -115,4 +114,32 @@ std::string GetTimestampString()
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S");
     return ss.str();
+}
+
+void hardwareSummary(HARDWARE_INFO &hw_info)
+{
+    LOG("Hardware Detection Summary:");
+    if (hw_info.has_cuda && hw_info.has_nvidia)
+    {
+        LOG("CUDA Available: " << "Yes");
+        LOG("GPU: " << hw_info.gpu_name);
+    }
+
+    if (hw_info.has_opencl && hw_info.has_amd)
+    {
+        LOG("OpenCL Available: " << "Yes");
+        LOG("GPU: " << hw_info.gpu_name);
+    }
+
+    if (hw_info.has_opencl && hw_info.has_nvidia && !hw_info.has_cuda)
+    {
+        LOG("Install Nvidia Cuda toolkit for best performance");
+        LOG("GPU: " << hw_info.gpu_name);
+    }
+
+    if (hw_info.has_opencl && hw_info.has_intel)
+    {
+        LOG("Using CPU: Will be Slower");
+        LOG("GPU: " << hw_info.gpu_name);
+    }
 }

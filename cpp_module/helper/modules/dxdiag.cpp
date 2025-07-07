@@ -165,6 +165,7 @@ namespace DG
     bool InitializeDXGI(DXGIContext &ctx)
     {
         HRESULT hr;
+
         // Create DXGI Factory
         hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void **>(&ctx.pFactory));
         if (FAILED(hr))
@@ -172,15 +173,8 @@ namespace DG
             std::cerr << "Failed to create DXGI Factory. HR: " << std::hex << hr << std::endl;
             return false;
         }
-        // Enumerate adapters (graphics cards)
-        hr = ctx.pFactory->EnumAdapters1(0, &ctx.pAdapter);
-        if (FAILED(hr))
-        {
-            std::cerr << "Failed to enumerate adapters. HR: " << std::hex << hr << std::endl;
-            SafeRelease(&ctx.pFactory);
-            return false;
-        }
-        // Create D3D11 Device and Context
+
+        // Feature levels to try for D3D11 device creation
         D3D_FEATURE_LEVEL featureLevels[] = {
             D3D_FEATURE_LEVEL_11_0,
             D3D_FEATURE_LEVEL_10_1,
@@ -189,70 +183,108 @@ namespace DG
             D3D_FEATURE_LEVEL_9_1,
         };
         D3D_FEATURE_LEVEL featureLevel;
-        hr = D3D11CreateDevice(
-            ctx.pAdapter,
-            D3D_DRIVER_TYPE_UNKNOWN,
-            nullptr,
-            0,
-            featureLevels,
-            ARRAYSIZE(featureLevels),
-            D3D11_SDK_VERSION,
-            &ctx.pDevice,
-            &featureLevel,
-            &ctx.pImmediateContext);
 
-        if (FAILED(hr))
+        UINT adapterIndex = 0;
+        ComPtr<IDXGIAdapter1> pAdapter; // Use ComPtr for automatic release
+
+        while (ctx.pFactory->EnumAdapters1(adapterIndex, &pAdapter) != DXGI_ERROR_NOT_FOUND)
         {
-            std::cerr << "Failed to create D3D11 device. HR: " << std::hex << hr << std::endl;
-            SafeRelease(&ctx.pAdapter);
-            SafeRelease(&ctx.pFactory);
-            return false;
-        }
-        // Enumerate outputs (monitors) on the adapter
-        IDXGIOutput *pOutput = nullptr;
-        hr = ctx.pAdapter->EnumOutputs(0, &pOutput);
-        if (FAILED(hr))
-        {
-            std::cerr << "Failed to enumerate outputs. HR: " << std::hex << hr << std::endl;
-            SafeRelease(&ctx.pImmediateContext);
-            SafeRelease(&ctx.pDevice);
-            SafeRelease(&ctx.pAdapter);
-            SafeRelease(&ctx.pFactory);
-            return false;
-        }
-        // Query for IDXGIOutput1 interface
-        hr = pOutput->QueryInterface(__uuidof(IDXGIOutput1), reinterpret_cast<void **>(&ctx.pOutput1));
-        SafeRelease(&pOutput);
-        if (FAILED(hr))
-        {
-            std::cerr << "Failed to query IDXGIOutput1. HR: " << std::hex << hr << std::endl;
-            SafeRelease(&ctx.pImmediateContext);
-            SafeRelease(&ctx.pDevice);
-            SafeRelease(&ctx.pAdapter);
-            SafeRelease(&ctx.pFactory);
-            return false;
-        }
-        // Create Desktop Duplication
-        hr = ctx.pOutput1->DuplicateOutput(ctx.pDevice, &ctx.pDesktopDupl);
-        if (FAILED(hr))
-        {
-            std::cerr << "Failed to create duplicate output. HR: " << std::hex << hr << std::endl;
-            if (hr == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE)
+            DXGI_ADAPTER_DESC1 adapterDesc;
+            pAdapter->GetDesc1(&adapterDesc);
+
+            // Skip software adapters (WARP) unless specifically desired
+            if (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
             {
-                std::cerr << "Desktop Duplication is not available. Max number of applications using it already reached?" << std::endl;
+                adapterIndex++;
+                continue;
             }
-            else if (hr == E_ACCESSDENIED)
+
+            // std::wcout << L"Found Adapter: " << adapterDesc.Description << std::endl;
+
+            UINT outputIndex = 0;
+            ComPtr<IDXGIOutput> pOutput;
+
+            while (pAdapter->EnumOutputs(outputIndex, &pOutput) != DXGI_ERROR_NOT_FOUND)
             {
-                std::cerr << "Access denied. Possibly due to protected content or system settings." << std::endl;
+                DXGI_OUTPUT_DESC outputDesc;
+                pOutput->GetDesc(&outputDesc);
+
+                if (outputDesc.AttachedToDesktop)
+                {
+                    // std::wcout << L"  Found Output: " << outputDesc.DeviceName << L" (Attached to Desktop)" << std::endl;
+
+                    // Try to create D3D11 device on this specific adapter
+                    hr = D3D11CreateDevice(
+                        pAdapter.Get(),          // Use the current adapter
+                        D3D_DRIVER_TYPE_UNKNOWN, // Driver type is UNKNOWN when an adapter is explicitly specified
+                        nullptr,
+                        0,
+                        featureLevels,
+                        ARRAYSIZE(featureLevels),
+                        D3D11_SDK_VERSION,
+                        &ctx.pDevice,
+                        &featureLevel,
+                        &ctx.pImmediateContext);
+
+                    if (SUCCEEDED(hr))
+                    {
+                        // std::cout << "  D3D11 Device created successfully on this adapter." << std::endl;
+
+                        // Query for IDXGIOutput1 interface from the *same* output
+                        hr = pOutput->QueryInterface(__uuidof(IDXGIOutput1), reinterpret_cast<void **>(&ctx.pOutput1));
+                        if (SUCCEEDED(hr))
+                        {
+                            // std::cout << "  IDXGIOutput1 queried successfully." << std::endl;
+
+                            // Attempt to duplicate the output
+                            hr = ctx.pOutput1->DuplicateOutput(ctx.pDevice, &ctx.pDesktopDupl);
+                            if (SUCCEEDED(hr))
+                            {
+                                // std::cout << "Desktop Duplication initialized successfully on output: " << outputIndex << " of adapter: " << adapterIndex << std::endl;
+                                // We found a working setup, store references and return true
+                                ctx.pAdapter = pAdapter.Detach(); // Detach to keep the reference
+                                // pOutput.Detach() is not needed as ctx.pOutput1 is derived from it
+                                return true;
+                            }
+                            else
+                            {
+                                LOG_ERR("Failed to create duplicate output");
+                                if (hr == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE)
+                                {
+                                    LOG_ERR("Desktop Duplication is not available. Max number of applications using it already reached or a fullscreen application is running.");
+                                }
+                                else if (hr == E_ACCESSDENIED)
+                                {
+                                    std::cerr << "  Access denied. Possibly due to protected content or system settings (e.g., Secure Desktop)." << std::endl;
+                                }
+                                // Clean up the device and context if duplication failed
+                                SafeRelease(&ctx.pImmediateContext);
+                                SafeRelease(&ctx.pDevice);
+                                SafeRelease(&ctx.pOutput1);
+                            }
+                        }
+                        else
+                        {
+                            LOG_ERR("Failed to query IDXGIOutput1 from output. HR: 0x" << std::hex << hr << std::dec);
+                            SafeRelease(&ctx.pImmediateContext);
+                            SafeRelease(&ctx.pDevice);
+                        }
+                    }
+                    else
+                    {
+                        LOG_ERR("Failed to create D3D11 device on this adapter. HR: 0x" << std::hex << hr << std::dec);
+                    }
+                }
+                outputIndex++;
+                pOutput.Reset(); // Release current output before enumerating next
             }
-            SafeRelease(&ctx.pOutput1);
-            SafeRelease(&ctx.pImmediateContext);
-            SafeRelease(&ctx.pDevice);
-            SafeRelease(&ctx.pAdapter);
-            SafeRelease(&ctx.pFactory);
-            return false;
+            adapterIndex++;
+            pAdapter.Reset(); // Release current adapter before enumerating next
         }
-        return true;
+
+        LOG_ERR("Failed to initialize DXGI on any suitable adapter/output combination.");
+        SafeRelease(&ctx.pFactory); // Ensure factory is released if nothing was found
+        return false;
     }
 
     // Helper function to get formatted timestamp

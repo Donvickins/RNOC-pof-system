@@ -23,3 +23,4 @@ bool setUpEnv();
 void checkGPU(HARDWARE_INFO &hw_info);
 bool supportedWindowingSystem();
 std::string GetTimestampString();
+void hardwareSummary(HARDWARE_INFO &hw_info);

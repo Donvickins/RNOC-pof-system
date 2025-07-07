@@ -4,11 +4,9 @@
 #include "utils.hpp"
 #include <cstdlib>
 
-cv::dnn::Net yolo_net;
-std::vector<std::string> class_names_vec;
-
 int main()
 {
+    cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
     LOG("Starting continuous screen capture...");
     LOG("Press Ctrl+C or ESC in the window to stop.");
 
@@ -19,6 +17,9 @@ int main()
     const int frameDelayMs = 1000 / targetFps;
     long long frameCount = 0;
     bool quit = false;
+
+    cv::dnn::Net yolo_net;
+    std::vector<std::string> class_names_vec;
 
     const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolo11l.onnx").generic_string();
     const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
@@ -34,13 +35,7 @@ int main()
     HARDWARE_INFO hw_info;
 
     checkGPU(hw_info);
-    // Log detected hardware
-    LOG("Hardware Detection Summary:");
-    LOG("CUDA Available: " << (hw_info.has_cuda ? "Yes" : "No"));
-    LOG("OpenCL Available: " << (hw_info.has_opencl ? "Yes" : "No"));
-    LOG("AMD GPU: " << (hw_info.has_amd ? "Yes" : "No"));
-    LOG("Intel GPU: " << (hw_info.has_intel ? "Yes" : "No"));
-    LOG("NVIDIA GPU: " << (hw_info.has_nvidia ? "Yes" : "No"));
+    hardwareSummary(hw_info);
 
     while (!quit)
     {
