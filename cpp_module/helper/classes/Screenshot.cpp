@@ -88,11 +88,15 @@ void Screenshot::capture()
     XWindowAttributes gwa;
     XGetWindowAttributes(display, root, &gwa);
 
-    XImage *img = XGetImage(display, root, 0, 0, gwa.width, gwa.height, AllPlanes, ZPixmap);
+    auto image_deleter = [](XImage* img) { if (img) XDestroyImage(img); };
+    std::unique_ptr<XImage, decltype(image_deleter)> img(
+        XGetImage(display, root, 0, 0, gwa.width, gwa.height, AllPlanes, ZPixmap),
+        image_deleter
+    );
+
     if (!img)
     {
         throw std::runtime_error("Unable to get Image");
-        XCloseDisplay(display);
     }
     std::string fileName = "screenshot_" + GetTimestampString() + ".png";
     const std::filesystem::path fullPath = this->_path + "/" + fileName;
@@ -104,17 +108,11 @@ void Screenshot::capture()
     cv::cvtColor(mat, this->_screenshot, cv::COLOR_BGRA2BGR);
 
     // Save to file
-
     if (!cv::imwrite(fullPath.generic_string(), this->_screenshot))
     {
         throw std::runtime_error("Unable to save screenshot");
-        XDestroyImage(img);
-        XCloseDisplay(display);
     }
     LOG("Saved to: " << fullPath.generic_string());
-
-    XDestroyImage(img);
-    XCloseDisplay(display);
 #endif
 }
 

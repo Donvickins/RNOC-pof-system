@@ -9,11 +9,12 @@
 
 int main()
 {
+    cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
+
     if (!setUpEnv())
         return -1;
 
     LOG("Starting Webcam Feed...");
-    LOG("Press CTRL + C to exit");
 
     const int targetFps = 30;
     int frameDelayMs = 1000 / targetFps;
@@ -45,7 +46,8 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
-        webcam = cv::VideoCapture(0 + cv::CAP_DSHOW);
+        //cv::CAP_DSHOW
+        webcam = cv::VideoCapture(0);
         if (webcam.isOpened())
         {
             // Quick check if we can get a frame

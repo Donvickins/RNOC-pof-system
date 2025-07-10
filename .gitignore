@@ -11,6 +11,9 @@ cpp_module/opencv_kernel/
 cpp_module/kernel_cache/
 python_module/venv/
 python_module/models/
+python_module/yolo_train/model/
+python_module/inference.py
 build/
 vcpkg_installed/
 .vscode/
+.venv

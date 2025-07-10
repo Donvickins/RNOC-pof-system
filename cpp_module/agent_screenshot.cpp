@@ -24,6 +24,7 @@ int main()
     // Perform hardware checks to determine how the app would run
     HARDWARE_INFO hw_info;
     checkGPU(hw_info);
+    hardwareSummary(hw_info);
 
     // Initialize ScreenShot
     std::string storagePath = "screenshots";
@@ -32,20 +33,20 @@ int main()
 
     const std::chrono::seconds interval(5); // Capture every 5 seconds
 
-    // // Now initialize YOLO
-    // cv::dnn::Net yolo_net;
-    // std::vector<std::string> class_names_vec;
+    // Now initialize YOLO
+    cv::dnn::Net yolo_net;
+    std::vector<std::string> class_names_vec;
 
-    // // Yolo Model Path
-    // const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolo11l.onnx").generic_string();
-    // const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
+    // Yolo Model Path
+    const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolov8l.onnx").generic_string();
+    const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
 
-    // LOG("Initializing YOLO network...");
-    // if (!setupYoloNetwork(yolo_net, YOLO_MODEL_PATH, CLASS_NAMES_PATH, class_names_vec, hw_info))
-    // {
-    //     LOG_ERR("Failed to setup YOLO network");
-    //     return -1;
-    // }
+    LOG("Initializing YOLO network...");
+    if (!setupYoloNetwork(yolo_net, YOLO_MODEL_PATH, CLASS_NAMES_PATH, class_names_vec, hw_info))
+    {
+        LOG_ERR("Failed to setup YOLO network");
+        return -1;
+    }
 
     // Main loop for capturing screenshots
     while (true)
@@ -54,26 +55,31 @@ int main()
         {
             screenshot.capture();
             image = screenshot.getImage();
+            if(image.empty())
+            {
+                LOG_ERR("Image is empty, exiting...");
+                break;
+            }
 
-            // try
-            // {
-            //     processFrameWithYOLO(image, yolo_net, class_names_vec);
-            // }
-            // catch (const cv::Exception &e)
-            // {
-            //     LOG_ERR("OpenCV error processing YOLO: " << e.what());
-            //     continue;
-            // }
-            // catch (const std::exception &e)
-            // {
-            //     LOG_ERR("Processing frame YOLO: " << e.what());
-            //     break;
-            // }
+            try
+            {
+                //processFrameWithYOLO(image, yolo_net, class_names_vec);
+            }
+            catch (const cv::Exception &e)
+            {
+                LOG_ERR("OpenCV error processing YOLO: " << e.what());
+                continue;
+            }
+            catch (const std::exception &e)
+            {
+                LOG_ERR("Processing frame YOLO: " << e.what());
+                break;
+            }
 
-            // cv::imshow("Screenshot", image);
-            // cv::waitKey(1);
-            // if (cv::getWindowProperty("Screenshot", cv::WND_PROP_VISIBLE) < 1)
-            //     break;
+            cv::imshow("Screenshot", image);
+            cv::waitKey(1);
+            if (cv::getWindowProperty("Screenshot", cv::WND_PROP_VISIBLE) < 1)
+                break;
 
             std::this_thread::sleep_for(interval);
         }

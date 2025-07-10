@@ -79,32 +79,36 @@ void checkGPU(HARDWARE_INFO &hw_info)
         }
     }
 }
+
 bool supportedWindowingSystem()
 {
+    bool displayFound = false;
     if (const char *wayland_display = getenv("WAYLAND_DISPLAY"); wayland_display != nullptr)
     {
         LOG("Wayland display detected");
-        return true;
+        displayFound = true;
     }
     else if (const char *x11_display = getenv("DISPLAY"); x11_display != nullptr)
     {
         LOG("X11 display detected");
-        return true;
-    }
-    else
-    {
-        LOG_ERR("No Wayland or X11 display found");
-        return false;
+        displayFound = true;
     }
 
-    if (const char *XDG_SESSION_TYPE = getenv("XDG_SESSION_TYPE"); XDG_SESSION_TYPE != nullptr)
+    if (const char *xdg_session = getenv("XDG_SESSION_TYPE"); xdg_session != nullptr)
     {
-        LOG("XDG_SESSION_TYPE: " << XDG_SESSION_TYPE);
+        LOG("Session type (XDG_SESSION_TYPE): " << xdg_session);
     }
     else
     {
-        LOG_ERR("XDG_SESSION_TYPE not set");
+        LOG("XDG_SESSION_TYPE environment variable not set.");
     }
+
+    if (!displayFound)
+    {
+        LOG_ERR("No Wayland or X11 display environment variable found. The application may not be able to capture the screen.");
+    }
+
+    return displayFound;
 }
 
 std::string GetTimestampString()
@@ -116,30 +120,29 @@ std::string GetTimestampString()
     return ss.str();
 }
 
+
 void hardwareSummary(HARDWARE_INFO &hw_info)
 {
-    LOG("Hardware Detection Summary:");
-    if (hw_info.has_cuda && hw_info.has_nvidia)
+    LOG("Hardware Detection Summary");
+    if (!hw_info.has_cuda && !hw_info.has_opencl)
     {
-        LOG("CUDA Available: " << "Yes");
-        LOG("GPU: " << hw_info.gpu_name);
+        LOG("No GPU acceleration detected. Using CPU backend.");
+        return;
     }
 
-    if (hw_info.has_opencl && hw_info.has_amd)
-    {
-        LOG("OpenCL Available: " << "Yes");
-        LOG("GPU: " << hw_info.gpu_name);
-    }
+    LOG("GPU Vendor: " << (hw_info.gpu_vendor.empty() ? "N/A" : hw_info.gpu_vendor));
+    LOG("GPU Name:   " << (hw_info.gpu_name.empty() ? "N/A" : hw_info.gpu_name));
 
-    if (hw_info.has_opencl && hw_info.has_nvidia && !hw_info.has_cuda)
+    if (hw_info.has_cuda)
     {
-        LOG("Install Nvidia Cuda toolkit for best performance");
-        LOG("GPU: " << hw_info.gpu_name);
+        LOG("Backend:    CUDA enabled. (Optimal performance)");
     }
-
-    if (hw_info.has_opencl && hw_info.has_intel)
+    else if (hw_info.has_opencl)
     {
-        LOG("Using CPU: Will be Slower");
-        LOG("GPU: " << hw_info.gpu_name);
+        LOG("Backend:    OpenCL enabled.");
+        if (hw_info.has_nvidia)
+        {
+            LOG("Note:       For best performance on NVIDIA GPUs, please install the CUDA Toolkit.");
+        }
     }
 }

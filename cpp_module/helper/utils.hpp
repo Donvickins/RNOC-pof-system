@@ -2,8 +2,8 @@
 
 #include <filesystem>
 #include <iostream>
-#include <opencv2/opencv.hpp>
-#include <opencv2/core/ocl.hpp>
+#include "opencv2/opencv.hpp"
+#include "opencv2/core/ocl.hpp"
 
 #define LOG(...) std::cout << "[INFO] " << __VA_ARGS__ << std::endl;
 #define LOG_ERR(...) std::cerr << "[ERROR] " << __VA_ARGS__ << std::endl;

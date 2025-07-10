@@ -3,4 +3,5 @@ add_subdirectory(classes)
 
 add_library(utils STATIC utils.cpp)
 
-target_link_libraries(utils PUBLIC opencv_world)
+target_include_directories(utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(utils PUBLIC opencv_core opencv_cudaarithm opencv_dnn)
