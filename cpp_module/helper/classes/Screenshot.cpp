@@ -1,4 +1,8 @@
 #include "Screenshot.hpp"
+#if defined(__linux__)
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#endif
 
 Screenshot::Screenshot(const std::string &imagePath)
     : _path(imagePath)
@@ -12,6 +16,16 @@ Screenshot::~Screenshot()
     DG::Cleanup(this->_ctx);
 #endif
 }
+
+#if defined(__linux__)
+void Screenshot::DisplayDeleter::operator()(Display *d) const
+{
+    if (d)
+    {
+        XCloseDisplay(d);
+    }
+}
+#endif
 
 void Screenshot::Init()
 {
@@ -38,6 +52,13 @@ void Screenshot::Init()
             throw std::runtime_error("Unable to create screenshot directory");
         };
     }
+
+    Display *display_raw = XOpenDisplay(nullptr);
+    if (!display_raw)
+    {
+        throw std::runtime_error("Unable to open X display in Screenshot::Init");
+    }
+    this->_display.reset(display_raw);
 #endif
 }
 
@@ -78,21 +99,22 @@ void Screenshot::capture()
 
 #elif defined(__linux__)
 
-    Display *display = XOpenDisplay(nullptr);
-    if (!display)
+    if (!this->_display)
     {
-        throw std::runtime_error("Unable to open X display");
+        throw std::runtime_error("X display is not open for capture");
     }
+    Display *display = this->_display.get();
+
     const Window root = DefaultRootWindow(display);
 
     XWindowAttributes gwa;
     XGetWindowAttributes(display, root, &gwa);
 
-    auto image_deleter = [](XImage* img) { if (img) XDestroyImage(img); };
+    auto image_deleter = [](XImage *img)
+    { if (img) XDestroyImage(img); };
     std::unique_ptr<XImage, decltype(image_deleter)> img(
         XGetImage(display, root, 0, 0, gwa.width, gwa.height, AllPlanes, ZPixmap),
-        image_deleter
-    );
+        image_deleter);
 
     if (!img)
     {
@@ -102,7 +124,7 @@ void Screenshot::capture()
     const std::filesystem::path fullPath = this->_path + "/" + fileName;
 
     // Create cv::Mat from XImage data (assuming 32bpp)
-    const cv::Mat mat(gwa.height, gwa.width, CV_8UC4, img->data);
+    const cv::Mat mat(img->height, img->width, CV_8UC4, img->data, img->bytes_per_line);
 
     // Convert BGRA to BGR if needed
     cv::cvtColor(mat, this->_screenshot, cv::COLOR_BGRA2BGR);

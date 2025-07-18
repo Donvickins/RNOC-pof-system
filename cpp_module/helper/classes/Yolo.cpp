@@ -28,7 +28,6 @@ bool setupYoloNetwork(cv::dnn::Net &net, const std::string &model_path, const st
         net = cv::dnn::readNetFromONNX(model_path);
         if (net.empty())
         {
-            // readNetFromONNX can fail without an exception on certain errors
             LOG_ERR("Failed to load YOLO model");
             return false;
         }
@@ -38,6 +37,8 @@ bool setupYoloNetwork(cv::dnn::Net &net, const std::string &model_path, const st
         LOG_ERR("OpenCV exception during YOLO model loading: " << e.what());
         return false;
     }
+
+    net.enableFusion(false);
 
     // 2. Configure the backend based on hardware detection
     if (hw_info.has_cuda)
@@ -60,7 +61,6 @@ bool setupYoloNetwork(cv::dnn::Net &net, const std::string &model_path, const st
     LOG("Loading class names from: " << class_names_path);
     if (!loadClassNames(class_names_path, out_class_names_vec) || out_class_names_vec.empty())
     {
-        // loadClassNames already prints an error, so we just add context here.
         LOG_ERR("Could not initialize network because class names failed to load.");
         return false;
     }
@@ -98,13 +98,15 @@ void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<s
     catch (const cv::Exception &e)
     {
         LOG_ERR("YOLO: OpenCV Exception during net.forward(): " << e.what());
+        throw;
     }
 
     // --- REVISED & IMPROVED POST-PROCESSING ---
 
     // The output 'outs[0]' is a Mat with 3 dimensions: [batch_size, num_channels, num_proposals]
     // For a YOLOv8-style model, this is [1, 84, 8400] where 84 = 4 (box) + 80 (classes)
-    if (outs.empty() || outs[0].dims != 3) {
+    if (outs.empty() || outs[0].dims != 3)
+    {
         LOG_ERR("YOLO: Invalid output from network forward pass.");
         return;
     }
@@ -127,10 +129,10 @@ void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<s
     for (int i = 0; i < detection_matrix.rows; ++i)
     {
         // Get a pointer to the current row's data [cx, cy, w, h, class_score_1, class_score_2, ...]
-        const float* proposal = detection_matrix.ptr<float>(i);
+        const float *proposal = detection_matrix.ptr<float>(i);
 
         // The class scores start after the 4 box coordinates
-        cv::Mat scores(1, class_names_list.size(), CV_32F, (void*)(proposal + 4));
+        cv::Mat scores(1, class_names_list.size(), CV_32F, (void *)(proposal + 4));
 
         cv::Point class_id_point;
         double max_score;
@@ -144,8 +146,8 @@ void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<s
             // Extract box coordinates
             const float cx = proposal[0];
             const float cy = proposal[1];
-            const float w  = proposal[2];
-            const float h  = proposal[3];
+            const float w = proposal[2];
+            const float h = proposal[3];
 
             // Scale box coordinates back to the original frame size
             int left = static_cast<int>((cx - w / 2) * x_factor);
@@ -170,4 +172,6 @@ void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<s
         label += cv::format(": %.2f", confidences[idx]);
         cv::putText(frame, label, cv::Point(box.x, box.y - 10), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
     }
+
+    LOG("Processed Frame successfully");
 }

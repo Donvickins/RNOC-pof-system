@@ -23,20 +23,11 @@ int main()
 
     // Initialize webcam first with default resolution for quick start
     cv::VideoCapture webcam;
-    const int MAX_INIT_ATTEMPTS = 3;
+    const int16_t MAX_INIT_ATTEMPTS = 3;
     bool webcam_initialized = false;
     HARDWARE_INFO hw_info;
     checkGPU(hw_info);
-
-    LOG("Device: " << hw_info.gpu_name);
-    if (hw_info.has_cuda)
-    {
-        LOG("Cuda Available: Yes");
-    }
-    else if (hw_info.has_nvidia && !hw_info.has_cuda)
-    {
-        LOG("No Cuda Toolkit found, Install CUDA for best Performance")
-    }
+    hardwareSummary(hw_info);
 
     for (int attempt = 0; attempt < MAX_INIT_ATTEMPTS && !webcam_initialized; attempt++)
     {
@@ -46,8 +37,12 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
 
-        //cv::CAP_DSHOW
-        webcam = cv::VideoCapture(0);
+// cv::CAP_DSHOW
+#if defined(_WIN32)
+        webcam = cv::VideoCapture(0 + cv::CAP_MSMF);
+#elif defined(__linux__)
+        webcam = cv::VideoCapture(0 + cv::CAP_V4L2);
+#endif
         if (webcam.isOpened())
         {
             // Quick check if we can get a frame
@@ -74,14 +69,14 @@ int main()
     static const std::string windowName = "Webcam Live Feed";
     cv::namedWindow(windowName, cv::WINDOW_NORMAL);
     cv::setWindowProperty(windowName, cv::WND_PROP_ASPECT_RATIO, cv::WINDOW_KEEPRATIO);
-    cv::resizeWindow(windowName, 1280, 720);
+    cv::resizeWindow(windowName, webcam.get(cv::CAP_PROP_FRAME_WIDTH), webcam.get(cv::CAP_PROP_FRAME_HEIGHT));
 
     // Now initialize YOLO
     cv::dnn::Net yolo_net;
     std::vector<std::string> class_names_vec;
     cv::ocl::setUseOpenCL(true);
 
-    const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolo11l.onnx").generic_string();
+    const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolov8l.onnx").generic_string();
     const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
 
     LOG("Initializing YOLO network...");
@@ -127,6 +122,7 @@ int main()
                     if (new_width >= 1280 && new_height >= 720)
                     {
                         high_res_initialized = true;
+                        cv::resizeWindow(windowName, webcam.get(cv::CAP_PROP_FRAME_WIDTH), webcam.get(cv::CAP_PROP_FRAME_HEIGHT));
                         LOG("Successfully switched to high resolution: " << new_width << "x" << new_height);
                     }
                     else

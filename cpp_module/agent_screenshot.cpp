@@ -3,6 +3,8 @@
 #include "Screenshot.hpp"
 #include <chrono>
 #include <thread>
+#include <mutex>
+#include <atomic>
 
 int main()
 {
@@ -18,26 +20,36 @@ int main()
     if (!supportedWindowingSystem())
         return -1;
 #endif
-    // Configure OpenCL to Use OpenCl Acceleration if available
-    cv::ocl::setUseOpenCL(true);
 
-    // Perform hardware checks to determine how the app would run
+    // Perform hardware checks
     HARDWARE_INFO hw_info;
     checkGPU(hw_info);
     hardwareSummary(hw_info);
 
-    // Initialize ScreenShot
+    // Initialize Screenshot
     std::string storagePath = "screenshots";
     Screenshot screenshot(storagePath);
     cv::Mat image;
+    cv::Mat image_clone;
 
-    const std::chrono::seconds interval(5); // Capture every 5 seconds
+    // Initialize Window
+    std::string winname = "Screenshot";
+    cv::namedWindow(winname, cv::WINDOW_NORMAL);
+    cv::resizeWindow(winname, 1280, 720);
 
-    // Now initialize YOLO
+    // Force window initialization with a dummy image
+    cv::Mat dummy(720, 1280, CV_8UC3, cv::Scalar(0, 0, 0));
+    cv::imshow(winname, dummy);
+    for (int i = 0; i < 5; ++i) // Multiple waitKey calls to ensure GUI initialization
+    {
+        cv::waitKey(20);
+    }
+    // Interval between screenshots
+    const std::chrono::milliseconds interval(10000); // 10 seconds
+
+    // Initialize YOLO
     cv::dnn::Net yolo_net;
     std::vector<std::string> class_names_vec;
-
-    // Yolo Model Path
     const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolov8l.onnx").generic_string();
     const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
 
@@ -45,54 +57,95 @@ int main()
     if (!setupYoloNetwork(yolo_net, YOLO_MODEL_PATH, CLASS_NAMES_PATH, class_names_vec, hw_info))
     {
         LOG_ERR("Failed to setup YOLO network");
+        cv::destroyAllWindows();
         return -1;
     }
 
-    // Main loop for capturing screenshots
-    while (true)
+    bool quit{false};
+    bool yolo_processing{false};
+    uint16_t MAX_RETRY{3};
+    uint16_t retry_count{0};
+
+    // Main loop for capturing screenshots and updating GUI
+    while (!quit)
     {
+        auto start_time = std::chrono::steady_clock::now();
         try
         {
+
+            LOG("Capturing screenshot...");
             screenshot.capture();
             image = screenshot.getImage();
-            if(image.empty())
-            {
-                LOG_ERR("Image is empty, exiting...");
-                break;
-            }
+            image_clone = image.clone();
 
-            try
+            if (image.empty())
             {
-                //processFrameWithYOLO(image, yolo_net, class_names_vec);
-            }
-            catch (const cv::Exception &e)
-            {
-                LOG_ERR("OpenCV error processing YOLO: " << e.what());
+                LOG_ERR("Image is empty, Retrying...");
+                retry_count++;
+                if (retry_count >= MAX_RETRY)
+                {
+                    LOG("Image is empty after " << MAX_RETRY << " retries. Exiting...");
+                    quit = true;
+                    break;
+                }
                 continue;
             }
-            catch (const std::exception &e)
+            retry_count = 0;
+
+            LOG("Processing frame with YOLO...");
+            yolo_processing = true;
+            processFrameWithYOLO(image, yolo_net, class_names_vec);
+            yolo_processing = false;
+
+            while (yolo_processing)
             {
-                LOG_ERR("Processing frame YOLO: " << e.what());
-                break;
+                if (!image_clone.empty())
+                {
+                    cv::imshow(winname, image_clone);
+                    cv::waitKey(10);
+                }
             }
-
-            cv::imshow("Screenshot", image);
-            cv::waitKey(1);
-            if (cv::getWindowProperty("Screenshot", cv::WND_PROP_VISIBLE) < 1)
-                break;
-
-            std::this_thread::sleep_for(interval);
         }
         catch (const std::exception &e)
         {
-            std::cerr << "An unexpected C++ exception occurred: " << e.what() << std::endl;
-            break;
+            LOG_ERR("An unexpected C++ exception occurred: " << e.what());
+            quit = true;
+            continue;
         }
         catch (...)
         {
-            std::cerr << "An unknown exception occurred." << std::endl;
+            LOG_ERR("An unknown exception occurred.");
+            quit = true;
+            continue;
+        }
+
+        cv::imshow(winname, image);
+        int key = cv::waitKey(30);
+
+        if (key == 27)
+        {
+            LOG("Exitting...");
+            quit = true;
             break;
         }
+
+        double visible = cv::getWindowProperty(winname, cv::WND_PROP_VISIBLE);
+        if (visible <= 0) // Ignore -1 (invalid window)
+        {
+            LOG("Exitting...");
+            quit = true;
+            break;
+        }
+
+        // Maintain screenshot interval
+        auto end_time = std::chrono::steady_clock::now();
+        auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        if (elapsed_time < interval.count())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(interval.count() - elapsed_time));
+        }
     }
+
+    cv::destroyAllWindows();
     return 0;
 }

@@ -8,6 +8,7 @@
 
 bool setUpEnv()
 {
+#ifdef _WIN32
     std::filesystem::path opencv_kernel = std::filesystem::current_path() / "kernel_cache";
 
     if (!std::filesystem::exists(opencv_kernel))
@@ -18,21 +19,21 @@ bool setUpEnv()
             return false;
         }
 
-#ifdef _WIN32
         if (_putenv_s("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str()) != 0)
         {
             LOG_ERR("SET Kernel Cache ENV Failed");
             return false;
         }
-#else
-        if (setenv("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str(), 1) != 0)
-        {
-            LOG_ERR("SET Kernel Cache ENV Failed");
-            return false;
-        }
-#endif
     }
+#endif
 
+#if (__linux__)
+    if (setenv("NO_AT_BRIDGE", "1", 1) != 0)
+    {
+        LOG_ERR("SET NO_AT_BRIDGE ENV Failed");
+        return false;
+    }
+#endif
     return true;
 }
 
@@ -119,7 +120,6 @@ std::string GetTimestampString()
     ss << std::put_time(std::localtime(&time), "%Y%m%d_%H%M%S");
     return ss.str();
 }
-
 
 void hardwareSummary(HARDWARE_INFO &hw_info)
 {
