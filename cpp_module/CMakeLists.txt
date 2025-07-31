@@ -45,3 +45,9 @@ if(UNIX)
   add_executable(agent_screenshot agent_screenshot.cpp)
   target_link_libraries(agent_screenshot PRIVATE screenshot)
 endif()
+
+add_executable(cv_test test.cpp)
+target_link_libraries(cv_test opencv_core opencv_imgproc opencv_highgui)
+
+# add_executable(yoloPro yolo_Test.cpp)
+# target_link_libraries(yoloPro opencv_core opencv_dnn opencv_cudaarithm opencv_videoio opencv_highgui opencv_imgproc)
