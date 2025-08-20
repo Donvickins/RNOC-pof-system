@@ -1,18 +1,18 @@
 {
-  "name": "ai-agent",
+  "name": "agent",
   "version": "1.0.0",
-  "description": "A C++ project for AI agent for automating tasks",
+  "description": "A C++ project for automating tasks using object detection and image processing.",
   "dependencies": [
     {
       "name": "opencv4",
       "features": [
         "highgui",
         "contrib",
-        "cuda",
-        "cudnn",
         "dnn",
         "opencl",
         "ade",
+        "cuda",
+        "cudnn",
         "dnn-cuda"
       ]
     },

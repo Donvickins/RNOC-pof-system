@@ -3,6 +3,7 @@
 #include "Yolo.hpp"
 #include "utils.hpp"
 #include <cstdlib>
+#include <future>
 
 int main()
 {
@@ -21,7 +22,7 @@ int main()
     cv::dnn::Net yolo_net;
     std::vector<std::string> class_names_vec;
 
-    const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolo11l.onnx").generic_string();
+    const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolov8l.onnx").generic_string();
     const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
 
     // Create a resizable OpenCV window before the main loop
@@ -37,6 +38,15 @@ int main()
     checkGPU(hw_info);
     hardwareSummary(hw_info);
 
+    if (!setupYoloNetwork(yolo_net, YOLO_MODEL_PATH, CLASS_NAMES_PATH, class_names_vec, hw_info))
+    {
+        LOG_ERR("Failed to setup YOLO network");
+        return -1;
+    }
+
+    std::future<bool> process_yolo;
+    std::future_status yolo_status;
+
     while (!quit)
     {
         DG::DXGIContext ctx;
@@ -48,17 +58,6 @@ int main()
             continue;
         }
         LOG("DXGI Initialized successfully.");
-
-        // Re-initialize YOLO network after DXGI is ready
-        // Clear previous class names before loading new ones to avoid accumulation if setup is retried.
-        class_names_vec.clear();
-        if (!setupYoloNetwork(yolo_net, YOLO_MODEL_PATH, CLASS_NAMES_PATH, class_names_vec, hw_info))
-        {
-            LOG_ERR("Failed to setup YOLO network. Cleaning up DXGI and retrying.");
-            CleanupDXGI(ctx); // Cleanup DXGI if YOLO setup fails
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-            continue;
-        }
 
         int width = 0, height = 0;
         std::vector<BYTE> pixelBuffer;
@@ -103,12 +102,51 @@ int main()
                 frameCount++;
                 cv::Mat frame(height, width, CV_8UC4, pixelBuffer.data());
                 cv::Mat frame_bgr;
+                cv::Mat frame_clone;
                 cv::cvtColor(frame, frame_bgr, cv::COLOR_BGRA2BGR);
+                cv::cvtColor(frame, frame_clone, cv::COLOR_BGRA2BGR);
 
                 // Process frame with YOLOv11
                 try
                 {
-                    processFrameWithYOLO(frame_bgr, yolo_net, class_names_vec);
+                    LOG("Processing frame with YOLO...");
+                    process_yolo = std::async(std::launch::async, &processFrameWithYOLO, std::ref(frame_bgr), std::ref(yolo_net), std::ref(class_names_vec));
+                    yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
+
+                    while (yolo_status != std::future_status::ready)
+                    {
+                        int width_disp = 0, height_disp = 0;
+                        std::vector<BYTE> pixelBuffer_disp;
+                        if (DG::GetScreenPixelsDXGI(ctx.pDesktopDupl, ctx.pDevice, ctx.pImmediateContext, width_disp, height_disp, pixelBuffer_disp) && !pixelBuffer_disp.empty())
+                        {
+                            cv::Mat frame_disp(height_disp, width_disp, CV_8UC4, pixelBuffer_disp.data());
+                            cv::Mat frame_disp_bgr;
+                            cv::cvtColor(frame_disp, frame_disp_bgr, cv::COLOR_BGRA2BGR);
+
+                            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) >= 1)
+                            {
+                                cv::imshow(windowName, frame_disp_bgr);
+                            }
+                        }
+
+                        int key = cv::waitKey(1);
+                        // Check for ESC key
+                        if (key == 27)
+                        {
+                            yolo_status = std::future_status::ready;
+                            duplication_active = false;
+                            quit = true;
+                        }
+                        // Check if window was closed
+                        if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) < 1)
+                        {
+                            yolo_status = std::future_status::ready;
+                            duplication_active = false;
+                            quit = true;
+                        }
+
+                        yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
+                    }
                 }
                 catch (const cv::Exception &e)
                 {
@@ -119,7 +157,7 @@ int main()
                 }
                 catch (const std::exception &e)
                 {
-                    LOG_ERR("Error during YOLO processing: " << e.what());
+                    LOG_ERR("Error during YOLO processing");
                     duplication_active = false; // Force re-initialization for other std exceptions too
                     break;
                 }

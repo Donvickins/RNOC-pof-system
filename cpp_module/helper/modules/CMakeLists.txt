@@ -8,5 +8,5 @@ if(WIN32)
         ${CMAKE_SOURCE_DIR}/helper
     )
 
-    target_link_libraries(dxdiag PUBLIC opencv_world utils windowscodecs d3d11 dxguid)
+    target_link_libraries(dxdiag PUBLIC opencv_core utils windowscodecs d3d11 dxguid)
 endif()

@@ -1,0 +1,13 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+        "name": "windows",
+        "displayName": "Windows Static",
+        "generator": "Ninja",
+        "hidden": false,
+        "binaryDir": "${sourceDir}/build/"
+        }
+        
+    ]
+}

@@ -2,9 +2,7 @@
 #include "utils.hpp"
 #include "Screenshot.hpp"
 #include <chrono>
-#include <thread>
-#include <mutex>
-#include <atomic>
+#include <future>
 
 int main()
 {
@@ -62,7 +60,8 @@ int main()
     }
 
     bool quit{false};
-    bool yolo_processing{false};
+    std::future<bool> process_yolo;
+    std::future_status yolo_status;
     uint16_t MAX_RETRY{3};
     uint16_t retry_count{0};
 
@@ -93,17 +92,32 @@ int main()
             retry_count = 0;
 
             LOG("Processing frame with YOLO...");
-            yolo_processing = true;
-            processFrameWithYOLO(image, yolo_net, class_names_vec);
-            yolo_processing = false;
-
-            while (yolo_processing)
+            process_yolo = std::async(std::launch::async, &processFrameWithYOLO, std::ref(image), std::ref(yolo_net), std::ref(class_names_vec));
+            yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
+            while (yolo_status != std::future_status::ready)
             {
                 if (!image_clone.empty())
                 {
-                    cv::imshow(winname, image_clone);
-                    cv::waitKey(10);
+                    if (cv::getWindowProperty(winname, cv::WND_PROP_VISIBLE) >= 1)
+                    {
+                        cv::imshow(winname, image_clone);
+                    }
+
+                    int key = cv::waitKey(1);
+                    // Check for ESC key
+                    if (key == 27)
+                    {
+                        yolo_status = std::future_status::ready;
+                        quit = true;
+                    }
+                    // Check if window was closed
+                    if (cv::getWindowProperty(winname, cv::WND_PROP_VISIBLE) < 1)
+                    {
+                        yolo_status = std::future_status::ready;
+                        quit = true;
+                    }
                 }
+                yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
             }
         }
         catch (const std::exception &e)

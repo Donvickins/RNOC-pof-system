@@ -38,7 +38,7 @@ bool setupYoloNetwork(cv::dnn::Net &net, const std::string &model_path, const st
         return false;
     }
 
-    net.enableFusion(false);
+    net.enableFusion(true);
 
     // 2. Configure the backend based on hardware detection
     if (hw_info.has_cuda)
@@ -70,12 +70,12 @@ bool setupYoloNetwork(cv::dnn::Net &net, const std::string &model_path, const st
     return true;
 }
 
-void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<std::string> &class_names_list)
+bool processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<std::string> &class_names_list)
 {
     if (frame.empty() || net.empty())
     {
         LOG_ERR("YOLO: processFrameWithYOLO called with an empty frame or network.");
-        return;
+        return false;
     }
 
     cv::Mat blob;
@@ -108,7 +108,7 @@ void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<s
     if (outs.empty() || outs[0].dims != 3)
     {
         LOG_ERR("YOLO: Invalid output from network forward pass.");
-        return;
+        return false;
     }
     cv::Mat detections = outs[0];
 
@@ -173,5 +173,5 @@ void processFrameWithYOLO(cv::Mat &frame, cv::dnn::Net &net, const std::vector<s
         cv::putText(frame, label, cv::Point(box.x, box.y - 10), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
     }
 
-    LOG("Processed Frame successfully");
+    return true;
 }

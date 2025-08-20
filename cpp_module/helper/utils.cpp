@@ -18,12 +18,12 @@ bool setUpEnv()
             LOG_ERR("Create Kernel Cache Failed");
             return false;
         }
+    }
 
-        if (_putenv_s("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str()) != 0)
-        {
-            LOG_ERR("SET Kernel Cache ENV Failed");
-            return false;
-        }
+    if (_putenv_s("OPENCV_OCL4DNN_CONFIG_PATH", opencv_kernel.generic_string().c_str()) != 0)
+    {
+        LOG_ERR("SET Kernel Cache ENV Failed");
+        return false;
     }
 #endif
 

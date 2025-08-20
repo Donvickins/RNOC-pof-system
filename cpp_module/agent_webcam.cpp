@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
-#include <thread>
+#include <future>
 
 int main()
 {
@@ -39,7 +39,7 @@ int main()
 
 // cv::CAP_DSHOW
 #if defined(_WIN32)
-        webcam = cv::VideoCapture(0 + cv::CAP_MSMF);
+        webcam = cv::VideoCapture(0, cv::CAP_DSHOW);
 #elif defined(__linux__)
         webcam = cv::VideoCapture(0 + cv::CAP_V4L2);
 #endif
@@ -91,6 +91,8 @@ int main()
     bool high_res_initialized = false;
     int high_res_attempts = 0;
     const int MAX_HIGH_RES_ATTEMPTS = 3;
+    std::future<bool> process_yolo;
+    std::future_status yolo_status;
 
     while (!quit)
     {
@@ -110,7 +112,6 @@ int main()
             {
                 if (webcam.get(cv::CAP_PROP_FRAME_WIDTH) < 1280 || webcam.get(cv::CAP_PROP_FRAME_HEIGHT) < 720)
                 {
-
                     LOG("Attempting to switch to high resolution...");
                     webcam.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
                     webcam.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
@@ -139,7 +140,40 @@ int main()
 
             try
             {
-                processFrameWithYOLO(flippedFrame, yolo_net, class_names_vec);
+                LOG("Processing frame with YOLO...");
+                process_yolo = std::async(std::launch::async, &processFrameWithYOLO, std::ref(flippedFrame), std::ref(yolo_net), std::ref(class_names_vec));
+                yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
+                if (!hw_info.has_cuda)
+                {
+                    while (yolo_status != std::future_status::ready)
+                    {
+                        cv::Mat preview_frame;
+                        webcam >> preview_frame;
+                        cv::flip(preview_frame, preview_frame, 1);
+                        if (!preview_frame.empty())
+                        {
+                            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) >= 1)
+                            {
+                                cv::imshow(windowName, preview_frame);
+                            }
+
+                            int key = cv::waitKey(1);
+                            // Check for ESC key
+                            if (key == 27)
+                            {
+                                yolo_status = std::future_status::ready;
+                                quit = true;
+                            }
+                            // Check if window was closed
+                            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) < 1)
+                            {
+                                yolo_status = std::future_status::ready;
+                                quit = true;
+                            }
+                        }
+                        yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
+                    }
+                }
             }
             catch (const cv::Exception &e)
             {
@@ -151,7 +185,7 @@ int main()
                 LOG_ERR("Standard error during YOLO processing in webcam agent: " << e.what());
                 quit = true; // Stop processing
             }
-
+            process_yolo.wait(); // Ensure the YOLO processing thread completes
             if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) >= 1)
             {
                 cv::imshow(windowName, flippedFrame);

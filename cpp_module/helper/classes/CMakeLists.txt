@@ -13,5 +13,6 @@ target_link_libraries(yolo PUBLIC utils)
 target_link_libraries(screenshot PUBLIC yolo)
 
 if(WIN32)
-    target_link_libraries(screenshot PRIVATE dxdiag)
+    target_include_directories(screenshot PUBLIC ${CMAKE_SOURCE_DIR}/helper/modules)
+    target_link_libraries(screenshot PUBLIC dxdiag)
 endif()
