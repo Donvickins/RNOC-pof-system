@@ -32,7 +32,8 @@ if train_percentage < .01 or train_percentage > 0.99:
    print('Invalid entry for train_pct. Please enter a number between .01 and .99.')
    sys.exit(1)
 
-validation_percentage = 1 - train_percentage
+if train_percentage == 0.99:
+    train_percentage = 1
 
 # Define path to input dataset 
 input_image_path = os.path.join(data_path,'images')
@@ -61,8 +62,15 @@ if not os.path.exists(env_dir):
         print(f'Environment Creation failed with error: {e}')
         sys.exit(1)
 
-venv_pip = os.path.join(env_dir, 'bin', 'pip')
-venv_python = os.path.join(env_dir, 'bin', 'python')
+if os.name == 'posix':
+    venv_pip = os.path.join(env_dir, 'bin', 'pip')
+    venv_python = os.path.join(env_dir, 'bin', 'python')
+elif os.name == 'nt':
+    venv_pip = os.path.join(env_dir, 'Scripts', 'pip')
+    venv_python = os.path.join(env_dir, 'Scripts', 'python')
+else:
+    print("Unknown Operating system")
+    sys.exit(1)
 
 if not os.path.exists(venv_pip) or not os.path.exists(venv_python):
     print(f'pip and python not found in: {venv_pip} and {venv_python}')
@@ -171,9 +179,7 @@ print(f'Training Model {model_name} at: {model_path}')
 
 try:
     train = command.run([
-        yolo_exec, 'detect', 'train', f'data={config_yaml}', f'model={model_path}', 'epochs=60', 'imgsz=640'
+        yolo_exec, 'task=segment', 'mode=train', f'data={config_yaml}', f'model={model_path}', 'patience=100', 'epochs=200', 'imgsz=640'
     ], text=True, check=True)
 except command.CalledProcessError as e:
     print(f"Failed to train: {e}")
-
-
