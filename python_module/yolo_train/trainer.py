@@ -66,8 +66,8 @@ if os.name == 'posix':
     venv_pip = os.path.join(env_dir, 'bin', 'pip')
     venv_python = os.path.join(env_dir, 'bin', 'python')
 elif os.name == 'nt':
-    venv_pip = os.path.join(env_dir, 'Scripts', 'pip')
-    venv_python = os.path.join(env_dir, 'Scripts', 'python')
+    venv_pip = os.path.join(env_dir, 'Scripts', 'pip.exe')
+    venv_python = os.path.join(env_dir, 'Scripts', 'python.exe')
 else:
     print("Unknown Operating system")
     sys.exit(1)
