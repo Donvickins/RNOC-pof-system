@@ -17,6 +17,7 @@ cpp_module/kernel_cache/
 python_module/venv/
 python_module/.venv/
 python_module/models/
+python_module/yolo_train/*.pt
 python_module/yolo_train/model/*.pt
 python_module/yolo_train/model/*.onnx
 python_module/yolo_train/data
@@ -25,7 +26,9 @@ python_module/yolo_train/images/*.jpg
 python_module/yolo_train/labels/*.txt
 python_module/yolo_train/classes.txt
 python_module/yolo_train/config.yaml
-python_module/yolo_train/workspace
+python_module/yolo_train/workspace/*
+python_module/yolo_train/runs
+python_module/yolo_train/merge/*
 python_module/inference.py
 build/
 vcpkg_installed/

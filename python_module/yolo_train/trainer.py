@@ -50,8 +50,7 @@ if not os.path.exists(input_image_path) or not os.path.exists(input_label_path) 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 env_dir = os.path.abspath(os.path.join(root_dir,'.venv'))
 req_dir = os.path.join(root_dir, 'requirements.txt')
-yolo_exec = os.path.join(env_dir, 'bin', 'yolo')
-model_path = os.path.join(root_dir, 'yolo_train','model', 'yolov8l.pt')
+model_path = os.path.join(root_dir, 'yolo_train','model', 'yolov8l-seg.pt')
 
 #Create new venv
 if not os.path.exists(env_dir):
@@ -65,9 +64,11 @@ if not os.path.exists(env_dir):
 if os.name == 'posix':
     venv_pip = os.path.join(env_dir, 'bin', 'pip')
     venv_python = os.path.join(env_dir, 'bin', 'python')
+    yolo_exec = os.path.join(env_dir, 'bin', 'yolo')
 elif os.name == 'nt':
     venv_pip = os.path.join(env_dir, 'Scripts', 'pip.exe')
     venv_python = os.path.join(env_dir, 'Scripts', 'python.exe')
+    yolo_exec = os.path.join(env_dir, 'Scripts', 'yolo.exe')
 else:
     print("Unknown Operating system")
     sys.exit(1)
@@ -87,7 +88,7 @@ if sys.executable != venv_python:
 if install_deps == 'yes':   
     print('Installing Dependencies...')
     command.run([venv_python, '-m', 'ensurepip', '--upgrade'])
-    command.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip'])
+    command.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'])
     dep_install = command.run([venv_python, '-m', 'pip','install', '-r', req_dir])
     if dep_install.returncode != 0:
         print("Installation failed: Try again...")
@@ -105,11 +106,11 @@ else:
     print(f'Number of annotation files: {len(txt_file_list)}')
 
 # Define paths to image and annotation folders
-cwd = os.getcwd()
-train_img_path = os.path.join(cwd,'data/train/images')
-train_txt_path = os.path.join(cwd,'data/train/labels')
-validation_img_path = os.path.join(cwd,'data/validation/images')
-validation_txt_path = os.path.join(cwd,'data/validation/labels')
+workspace = os.path.abspath(os.path.join(data_path, 'training_data'))
+train_img_path = os.path.join(workspace, 'train', 'images')
+train_txt_path = os.path.join(workspace, 'train', 'labels')
+validation_img_path = os.path.join(workspace, 'validation', 'images')
+validation_txt_path = os.path.join(workspace, 'validation', 'labels')
 
 # Create folders if they don't already exist
 for dir_path in [train_img_path, train_txt_path, validation_img_path, validation_txt_path]:
@@ -158,10 +159,11 @@ with open(input_class_names_path, 'r') as class_names_file:
 number_of_classes = len(classes)
 
 # Data to write to config.yaml
+
 data = {
-    'path': os.path.abspath(data_path + 'data'),
-    'train': 'train/images',
-    'val': 'validation/images',
+    'path': os.path.join(workspace),
+    'train': os.path.join(workspace, 'train', 'images'),
+    'val': os.path.join(workspace, 'validation','images'),
     'nc': number_of_classes,
     'names': {key:value for key, value in enumerate(classes)}
 }
