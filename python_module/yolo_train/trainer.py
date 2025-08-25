@@ -32,9 +32,6 @@ if train_percentage < .01 or train_percentage > 0.99:
    print('Invalid entry for train_pct. Please enter a number between .01 and .99.')
    sys.exit(1)
 
-if train_percentage == 0.99:
-    train_percentage = 1
-
 # Define path to input dataset 
 input_image_path = os.path.join(data_path,'images')
 input_label_path = os.path.join(data_path,'labels')
