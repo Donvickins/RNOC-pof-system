@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include <stdexcept>
 
 #ifdef _WIN32
 #include <cstdlib>
@@ -9,7 +10,7 @@
 bool setUpEnv()
 {
 #ifdef _WIN32
-    std::filesystem::path opencv_kernel = std::filesystem::current_path() / "kernel_cache";
+    std::filesystem::path opencv_kernel = std::filesystem::current_path() / "Kernel_cache";
 
     if (!std::filesystem::exists(opencv_kernel))
     {
@@ -37,49 +38,7 @@ bool setUpEnv()
     return true;
 }
 
-void checkGPU(HARDWARE_INFO &hw_info)
-{
-    // Check CUDA (NVIDIA)
-    try
-    {
-        if (cv::cuda::getCudaEnabledDeviceCount() > 0)
-        {
-            hw_info.has_cuda = true;
-            hw_info.has_nvidia = true;
-        }
-    }
-    catch (const cv::Exception &e)
-    {
-        LOG_ERR("CUDA check failed: " << e.what());
-    }
 
-    // Check OpenCL (AMD, Intel, NVIDIA)
-    if (cv::ocl::haveOpenCL())
-    {
-        cv::ocl::Context context;
-        if (context.create(cv::ocl::Device::TYPE_ALL))
-        {
-            hw_info.has_opencl = true;
-            cv::ocl::Device device = context.device(0);
-            hw_info.gpu_name = device.name();
-            hw_info.gpu_vendor = device.vendorName();
-
-            // Detect vendor
-            if (hw_info.gpu_vendor.find("AMD") != std::string::npos)
-            {
-                hw_info.has_amd = true;
-            }
-            else if (hw_info.gpu_vendor.find("Intel") != std::string::npos)
-            {
-                hw_info.has_intel = true;
-            }
-            else if (hw_info.gpu_vendor.find("NVIDIA") != std::string::npos)
-            {
-                hw_info.has_nvidia = true;
-            }
-        }
-    }
-}
 
 bool supportedWindowingSystem()
 {
@@ -121,28 +80,33 @@ std::string GetTimestampString()
     return ss.str();
 }
 
-void hardwareSummary(HARDWARE_INFO &hw_info)
+
+void handleWindow(std::string winname, cv::Mat &frame, bool &quit)
 {
-    LOG("Hardware Detection Summary");
-    if (!hw_info.has_cuda && !hw_info.has_opencl)
+    if(frame.empty())
+        throw std::runtime_error("Frame is empty");
+
+    if(winname.empty())
+        winname = "Screenshot";
+
+    cv::namedWindow(winname, cv::WINDOW_NORMAL);
+    cv::resizeWindow(winname, 1280, 720);
+
+     
+    if (cv::getWindowProperty(winname, cv::WND_PROP_VISIBLE) >= 1)
     {
-        LOG("No GPU acceleration detected. Using CPU backend.");
-        return;
+        cv::imshow(winname, frame);
     }
 
-    LOG("GPU Vendor: " << (hw_info.gpu_vendor.empty() ? "N/A" : hw_info.gpu_vendor));
-    LOG("GPU Name:   " << (hw_info.gpu_name.empty() ? "N/A" : hw_info.gpu_name));
-
-    if (hw_info.has_cuda)
+    int key = cv::waitKey(10);
+    if (key == 27)
     {
-        LOG("Backend:    CUDA enabled. (Optimal performance)");
+        quit = true;
     }
-    else if (hw_info.has_opencl)
+    
+    if (cv::getWindowProperty(winname, cv::WND_PROP_VISIBLE) < 1)
     {
-        LOG("Backend:    OpenCL enabled.");
-        if (hw_info.has_nvidia)
-        {
-            LOG("Note:       For best performance on NVIDIA GPUs, please install the CUDA Toolkit.");
-        }
+        quit = true;
     }
+    
 }

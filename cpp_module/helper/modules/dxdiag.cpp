@@ -365,7 +365,7 @@ namespace DG
             IID_PPV_ARGS(&ctx.pWICFactory));
         CHECK_HR(hr, "Failed to create WIC Imaging Factory. Ensure COM is initialized (CoInitializeEx).");
 
-        std::cout << "DirectX and Desktop Duplication initialized successfully." << std::endl;
+        LOG("DirectX and Desktop Duplication initialized successfully");
         return hr;
     }
 
@@ -498,7 +498,7 @@ namespace DG
         hr = pEncoder->Commit();
         CHECK_HR(hr, "Failed to commit encoder");
 
-        std::cout << "Screenshot saved to: " << filename << std::endl;
+        LOG("Screenshot saved to: " << filename);
 
         // Release WIC interfaces
         if (pFrameEncode)
@@ -573,7 +573,7 @@ namespace DG
         // --- Check for blank (entirely black) screen ---
         if (IsScreenBlack(pixels, Desc.Width, Desc.Height, pitch))
         {
-            std::cout << "Screen detected as black, skipping screenshot." << std::endl;
+            LOG("Screen detected as black, skipping screenshot.");
             ctx.pImmediateContext->Unmap(StagingTexture, 0); // Unmap before releasing
             StagingTexture->Release();
             ctx.pDesktopDupl->ReleaseFrame(); // Release the frame acquired earlier

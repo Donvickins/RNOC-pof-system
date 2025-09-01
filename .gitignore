@@ -6,7 +6,6 @@ cpp_module/ai-agent.exe
 cpp_module/agent_webcam.exe
 cpp_module/agent_screenshot
 cpp_module/agent_screenshot.exe
-cpp_module/agent_screenshot
 cpp_module/agent_webcam
 cpp_module/yoloPro
 cpp_module/test.cpp

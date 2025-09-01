@@ -1,10 +1,5 @@
 #include "Yolo.hpp"
-#include <filesystem>
-#include <fstream>
-#include <iostream>
 #include <string>
-#include <vector>
-#include <cstdlib>
 #include <future>
 
 int main()
@@ -14,20 +9,15 @@ int main()
     if (!setUpEnv())
         return -1;
 
-    LOG("Starting Webcam Feed...");
-
-    const int targetFps = 30;
-    int frameDelayMs = 1000 / targetFps;
+    constexpr int targetFps = 30;
+    constexpr int frameDelayMs = 1000 / targetFps;
     long long frameCount = 0;
     bool quit = false;
 
     // Initialize webcam first with default resolution for quick start
     cv::VideoCapture webcam;
-    const int16_t MAX_INIT_ATTEMPTS = 3;
+    constexpr int16_t MAX_INIT_ATTEMPTS = 3;
     bool webcam_initialized = false;
-    HARDWARE_INFO hw_info;
-    checkGPU(hw_info);
-    hardwareSummary(hw_info);
 
     for (int attempt = 0; attempt < MAX_INIT_ATTEMPTS && !webcam_initialized; attempt++)
     {
@@ -46,8 +36,7 @@ int main()
         if (webcam.isOpened())
         {
             // Quick check if we can get a frame
-            cv::Mat test_frame;
-            if (webcam.read(test_frame))
+            if (cv::Mat test_frame; webcam.read(test_frame))
             {
                 webcam_initialized = true;
                 int actual_width = webcam.get(cv::CAP_PROP_FRAME_WIDTH);
@@ -65,34 +54,19 @@ int main()
 
     LOG("Webcam Initialized successfully at default resolution");
 
+    YOLO model = YOLO();
+    model.HardwareSummary();
+    LOG("Loading Model...");
+    model.Init();
+    LOG("Model Loaded Successfully...")
+
     // Create window after webcam is initialized
     static const std::string windowName = "Webcam Live Feed";
     cv::namedWindow(windowName, cv::WINDOW_NORMAL);
-    cv::setWindowProperty(windowName, cv::WND_PROP_ASPECT_RATIO, cv::WINDOW_KEEPRATIO);
-    cv::resizeWindow(windowName, webcam.get(cv::CAP_PROP_FRAME_WIDTH), webcam.get(cv::CAP_PROP_FRAME_HEIGHT));
-
-    // Now initialize YOLO
-    cv::dnn::Net yolo_net;
-    std::vector<std::string> class_names_vec;
-    cv::ocl::setUseOpenCL(true);
-
-    const std::string YOLO_MODEL_PATH = (std::filesystem::current_path() / "models/yolo/yolov8l.onnx").generic_string();
-    const std::string CLASS_NAMES_PATH = (std::filesystem::current_path() / "models/yolo/coco.names.txt").generic_string();
-
-    LOG("Initializing YOLO network...");
-    if (!setupYoloNetwork(yolo_net, YOLO_MODEL_PATH, CLASS_NAMES_PATH, class_names_vec, hw_info))
-    {
-        LOG_ERR("Failed to setup YOLO network for webcam agent.");
-        webcam.release();
-        return -1;
-    }
 
     // Phase 2: Switch to high resolution after first frame
     bool high_res_initialized = false;
     int high_res_attempts = 0;
-    const int MAX_HIGH_RES_ATTEMPTS = 3;
-    std::future<bool> process_yolo;
-    std::future_status yolo_status;
 
     while (!quit)
     {
@@ -106,9 +80,8 @@ int main()
         if (!flippedFrame.empty())
         {
             frameCount++;
-
             // Try to switch to high resolution after first successful frame
-            if (!high_res_initialized && high_res_attempts < MAX_HIGH_RES_ATTEMPTS)
+            if (constexpr int MAX_HIGH_RES_ATTEMPTS = 3; !high_res_initialized && high_res_attempts < MAX_HIGH_RES_ATTEMPTS)
             {
                 if (webcam.get(cv::CAP_PROP_FRAME_WIDTH) < 1280 || webcam.get(cv::CAP_PROP_FRAME_HEIGHT) < 720)
                 {
@@ -140,40 +113,13 @@ int main()
 
             try
             {
-                LOG("Processing frame with YOLO...");
-                process_yolo = std::async(std::launch::async, &processFrameWithYOLO, std::ref(flippedFrame), std::ref(yolo_net), std::ref(class_names_vec));
-                yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
-                if (!hw_info.has_cuda)
+                std::future<void> process_frame = std::async(std::launch::async, [&]{model.ProcessFrame(flippedFrame);});
+                std::future_status status = process_frame.wait_for(std::chrono::milliseconds(10));
+                do 
                 {
-                    while (yolo_status != std::future_status::ready)
-                    {
-                        cv::Mat preview_frame;
-                        webcam >> preview_frame;
-                        cv::flip(preview_frame, preview_frame, 1);
-                        if (!preview_frame.empty())
-                        {
-                            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) >= 1)
-                            {
-                                cv::imshow(windowName, preview_frame);
-                            }
-
-                            int key = cv::waitKey(1);
-                            // Check for ESC key
-                            if (key == 27)
-                            {
-                                yolo_status = std::future_status::ready;
-                                quit = true;
-                            }
-                            // Check if window was closed
-                            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) < 1)
-                            {
-                                yolo_status = std::future_status::ready;
-                                quit = true;
-                            }
-                        }
-                        yolo_status = process_yolo.wait_for(std::chrono::milliseconds(1));
-                    }
-                }
+                    handleWindow(windowName, flippedFrame, quit);
+                    status = process_frame.wait_for(std::chrono::milliseconds(10));
+                }while(!quit && status != std::future_status::ready);
             }
             catch (const cv::Exception &e)
             {
@@ -183,30 +129,11 @@ int main()
             catch (const std::exception &e)
             {
                 LOG_ERR("Standard error during YOLO processing in webcam agent: " << e.what());
-                quit = true; // Stop processing
-            }
-            process_yolo.wait(); // Ensure the YOLO processing thread completes
-            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) >= 1)
-            {
-                cv::imshow(windowName, flippedFrame);
-            }
-
-            int key = cv::waitKey(1);
-            // Check for ESC key
-            if (key == 27)
-            {
-                quit = true;
-            }
-            // Check if window was closed
-            if (cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) < 1)
-            {
                 quit = true;
             }
 
-            // Maintain target frame rate
             auto endTime = std::chrono::high_resolution_clock::now();
-            auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-            if (elapsedTime < frameDelayMs)
+            if (auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); elapsedTime < frameDelayMs)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(frameDelayMs - elapsedTime));
             }
