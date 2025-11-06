@@ -2,14 +2,9 @@
 
 #include <vector>
 #include <chrono>
-#include <thread>
-#include <iostream>
 #include <wrl/client.h>
-#include <thread>
 #include <filesystem>
 #include <string>
-#include <sstream>
-#include <iomanip>
 
 // Windows and DirectX headers
 #include <dxgi1_2.h>
@@ -19,7 +14,7 @@
 
 // OpenCV includes
 #include <opencv2/opencv.hpp>
-#include "utils.hpp"
+#include "Utils.hpp"
 
 using Microsoft::WRL::ComPtr;
 
@@ -69,6 +64,7 @@ namespace DG
         IWICImagingFactory *pWICFactory = nullptr;
     };
 
+    void enableANSIColors();
     void CleanupDXGI(DXGIContext &ctx);
     bool InitializeDXGI(DXGIContext &ctx);
     std::string GetTimestampString();

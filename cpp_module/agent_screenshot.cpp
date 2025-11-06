@@ -1,5 +1,5 @@
 #include "Yolo.hpp"
-#include "utils.hpp"
+#include "Utils.hpp"
 #include "Screenshot.hpp"
 #include <chrono>
 #include <future>
@@ -66,8 +66,6 @@ int main()
                 handleWindow("Screenshot", image, quit);
                 status = process_frame.wait_for(std::chrono::milliseconds(10));
             }while(!quit && status != std::future_status::ready);
-          
-            
         }
         catch (const std::exception &e)
         {

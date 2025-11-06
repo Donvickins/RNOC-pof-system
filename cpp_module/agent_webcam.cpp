@@ -1,13 +1,23 @@
 #include "Yolo.hpp"
 #include <string>
 #include <future>
+#include <mutex>
+#include <condition_variable>
+#ifdef  _WIN32
+#include "dxdiag.hpp"
+#endif
 
 int main()
 {
+#ifdef _WIN32
+    DG::enableANSIColors();
+#endif
     cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_WARNING);
 
-    if (!setUpEnv())
+    if (!setUpEnv()) {
+        std::cin.get();
         return -1;
+    }
 
     constexpr int targetFps = 30;
     constexpr int frameDelayMs = 1000 / targetFps;
@@ -48,7 +58,7 @@ int main()
 
     if (!webcam_initialized)
     {
-        LOG_ERR("Failed to initialize webcam after " << MAX_INIT_ATTEMPTS << " attempts");
+        errorHandler(std::format("Failed to initialize webcam after {}  attempts", MAX_INIT_ATTEMPTS));
         return -1;
     }
 
@@ -56,13 +66,27 @@ int main()
 
     YOLO model = YOLO();
     model.HardwareSummary();
-    LOG("Loading Model...");
-    model.Init();
-    LOG("Model Loaded Successfully...")
+    try {
+        model.Init();
+    }
+    catch (const cv::Exception& e) {
+        errorHandler(std::format("Failed to load model: {}", e.msg));
+        return -1;
+    }catch (const std::exception& e) {
+        errorHandler(std::format("Failed to Load model", e.what()));
+        return -1;
+    }
 
     // Create window after webcam is initialized
     static const std::string windowName = "Webcam Live Feed";
     cv::namedWindow(windowName, cv::WINDOW_NORMAL);
+
+    // For thread-safe frame handling between YOLO processing and display
+    std::mutex frame_mutex;
+    std::future<void> yolo_future;
+    std::condition_variable c_var;
+    std::atomic<bool> frame_processed;
+    cv::Mat display_frame;
 
     // Phase 2: Switch to high resolution after first frame
     bool high_res_initialized = false;
@@ -73,11 +97,10 @@ int main()
         auto startTime = std::chrono::high_resolution_clock::now();
 
         cv::Mat frame_bgr;
-        cv::Mat flippedFrame;
         webcam >> frame_bgr;
-        cv::flip(frame_bgr, flippedFrame, 1);
+        cv::flip(frame_bgr, frame_bgr, 1);
 
-        if (!flippedFrame.empty())
+        if (!frame_bgr.empty())
         {
             frameCount++;
             // Try to switch to high resolution after first successful frame
@@ -113,13 +136,31 @@ int main()
 
             try
             {
-                std::future<void> process_frame = std::async(std::launch::async, [&]{model.ProcessFrame(flippedFrame);});
-                std::future_status status = process_frame.wait_for(std::chrono::milliseconds(10));
-                do 
-                {
-                    handleWindow(windowName, flippedFrame, quit);
-                    status = process_frame.wait_for(std::chrono::milliseconds(10));
-                }while(!quit && status != std::future_status::ready);
+                frame_processed.store(false);
+                yolo_future = std::async(std::launch::async, [&model, &frame_processed, &frame_mutex, &c_var, &display_frame, frame_to_process = frame_bgr.clone()]() mutable {
+                    LOG("Processing frame...");
+                    model.ProcessFrame(frame_to_process);
+                    {
+                        std::lock_guard lock(frame_mutex);
+                        display_frame = frame_to_process.clone();
+                    }
+                    frame_processed = true;
+                    frame_processed.store(true);
+                    c_var.notify_one();
+                });
+
+                while (!quit) {
+                    {
+                        std::unique_lock lock(frame_mutex);
+                        if (display_frame.empty()) {
+                            c_var.wait(lock,[&frame_processed] {return frame_processed.load();});
+                        };
+                    }
+                    handleWindow(windowName, display_frame, quit);
+                    if (frame_processed)
+                        break;
+                }
+
             }
             catch (const cv::Exception &e)
             {
@@ -143,6 +184,12 @@ int main()
             LOG_ERR("Webcam Disconnected or Failed to get frames");
             quit = true;
         }
+    }
+
+    // Before exiting, wait for the final frame processing to complete.
+    if (yolo_future.valid())
+    {
+        yolo_future.get();
     }
 
     webcam.release();

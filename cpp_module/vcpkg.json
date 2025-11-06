@@ -9,17 +9,20 @@
         "highgui",
         "contrib",
         "dnn",
-        "opencl",
         "ade",
         "cuda",
         "cudnn",
-        "dnn-cuda"
+        "dnn-cuda",
+        "openvino",
+        "opencl"
       ]
     },
     {
       "name": "opencv4",
       "platform": "linux",
-      "features": ["qt"]
+      "features": [
+        "qt"
+      ]
     }
   ]
 }

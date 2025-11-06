@@ -1,9 +1,38 @@
 #include "Yolo.hpp"
-#include <stdexcept>
 
-YOLO::YOLO()
-{
-    
+YOLO::YOLO(){this->CheckGPU();}
+
+void YOLO::LoadOnnx() {
+    const std::filesystem::path onnx_path = this->MODEL_PATH / "yolov8l.onnx";
+
+    if (!std::filesystem::exists(onnx_path)) {
+        throw std::runtime_error(std::format("Ensure models are in {}", this->MODEL_PATH.generic_string()));
+    }
+
+    LOG(std::format("Loading model from: {}", onnx_path.generic_string()));
+    try{this->model = cv::dnn::readNetFromONNX(onnx_path.generic_string());}
+    catch (const cv::Exception& e) {
+        throw std::runtime_error(std::format("Failed to load model: {}", e.msg));
+    }
+}
+
+void YOLO::LoadVino() {
+    const std::filesystem::path bin = this->MODEL_PATH / "yolov8l.bin";
+    const std::filesystem::path bin_xml = this->MODEL_PATH / "yolov8l.xml";
+
+    if (!std::filesystem::exists(bin) && !std::filesystem::exists(bin_xml)){
+        throw std::runtime_error(std::format("Ensure models are in {}", this->MODEL_PATH.generic_string()));
+    }
+
+    LOG(std::format("Loading model from: {}", bin.generic_string()));
+    LOG(std::format("Loading model config from: {}", bin_xml.generic_string()));
+    try {
+        this->model = cv::dnn::readNet( bin_xml.generic_string(), bin.generic_string());
+    }catch (const cv::Exception& e) {
+        throw std::runtime_error(std::format("Failed to load model: {} \n \t Reason: {}", bin_xml.string() ,e.msg));
+    }catch(const std::exception& e){
+        throw std::runtime_error(std::format("Failed to load model: {}", e.what()));
+    }
 }
 
 void YOLO::LoadClassNames()
@@ -11,7 +40,7 @@ void YOLO::LoadClassNames()
     std::ifstream ifs(this->class_names_path);
     if (!ifs.is_open())
     {
-        throw std::runtime_error("Failed to open file");
+        throw std::runtime_error(std::format("Failed to open classlist at: {}", this->class_names_path));
     }
     std::string line;
     while (std::getline(ifs, line))
@@ -23,38 +52,35 @@ void YOLO::LoadClassNames()
 
 void YOLO::SetupYoloNetwork()
 {
-
-    this->model = cv::dnn::readNetFromONNX(this->MODEL_PATH);
-    if (this->model.empty())
-    {
-        throw std::runtime_error("Failed to load model");
-    }
-
-    this->model.enableFusion(true);
-
     if (this->hw_info.has_cuda)
     {
+        this->LoadOnnx();
         this->model.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
         this->model.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
     }
     else if (this->hw_info.has_amd && this->hw_info.has_opencl)
     {
+        this->LoadOnnx();
         cv::ocl::setUseOpenCL(true);
         this->model.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
         this->model.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL);
     }
     else
     {
+        this->LoadOnnx();
         this->model.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
         this->model.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
     }
 
+    if (this->model.empty())
+        throw std::runtime_error(std::format("Ensure models are in {}", this->MODEL_PATH.generic_string()));
+
+    this->model.enableFusion(true);
     this->LoadClassNames();
 }
 
 void YOLO::CheckGPU()
 {
-    // Check CUDA (NVIDIA)
     try
     {
         if (cv::cuda::getCudaEnabledDeviceCount() > 0)
@@ -63,23 +89,22 @@ void YOLO::CheckGPU()
             this->hw_info.has_nvidia = true;
         }
     }
-    catch (const cv::Exception &e)
+    catch (const cv::Exception& e)
     {
-        throw std::runtime_error("CUDA check failed: ");
+        throw std::runtime_error(std::format("Failed to get CUDA devices: {}", e.msg));
     }
 
-    // Check OpenCL (AMD, Intel, NVIDIA)
     if (cv::ocl::haveOpenCL())
     {
         cv::ocl::Context context;
-        if (context.create(cv::ocl::Device::TYPE_ALL))
+        context.create(cv::ocl::Device::TYPE_ALL);
+        if (!context.empty())
         {
             this->hw_info.has_opencl = true;
-            cv::ocl::Device device = context.device(0);
+            const cv::ocl::Device& device = context.device(0);
             this->hw_info.gpu_name = device.name();
             this->hw_info.gpu_vendor = device.vendorName();
 
-            // Detect vendor
             if (this->hw_info.gpu_vendor.find("AMD") != std::string::npos)
             {
                 this->hw_info.has_amd = true;
@@ -96,41 +121,30 @@ void YOLO::CheckGPU()
     }
 }
 
-void YOLO::HardwareSummary()
-{
+void YOLO::HardwareSummary() const {
     LOG("Hardware Detection Summary");
-    if (!this->hw_info.has_cuda && !this->hw_info.has_opencl)
-    {
-        LOG("No GPU acceleration detected. Using CPU backend.");
-        return;
-    }
-
-    LOG("GPU Vendor: " << (this->hw_info.gpu_vendor.empty() ? "N/A" : this->hw_info.gpu_vendor));
-    LOG("GPU Name:   " << (this->hw_info.gpu_name.empty() ? "N/A" : this->hw_info.gpu_name));
+    LOG("GPU Name: " << (this->hw_info.gpu_name.empty() ? "N/A" : this->hw_info.gpu_name));
 
     if (this->hw_info.has_cuda)
     {
+        LOG("Note: For best performance on NVIDIA GPUs, Kindly install the CUDA Toolkit.");
         LOG("Backend: CUDA enabled. (Optimal performance)");
-    }
-    else if (this->hw_info.has_opencl)
-    {
-        LOG("Backend: OpenCL enabled.");
-        if (this->hw_info.has_nvidia)
-        {
-            LOG("Note: For best performance on NVIDIA GPUs, please install the CUDA Toolkit.");
-        }
+    }else {
+        LOG("No GPU Acceleration");
     }
 }
 
 void YOLO::Init()
 {
-    this->CheckGPU();
     try
     {
         this->SetupYoloNetwork();
     }
-    catch (const std::exception &e)
+    catch (const cv::Exception&)
     {
+        throw;
+    }
+    catch (const std::exception& e) {
         throw std::runtime_error(e.what());
     }
 }
@@ -140,9 +154,9 @@ void YOLO::ProcessFrame(cv::Mat &frame)
     if (frame.empty() || this->model.empty())
     throw std::runtime_error("Model or Frame is invalid");
 
-    cv::Mat blob;
     try
     {
+        cv::Mat blob;
         cv::dnn::blobFromImage(frame, blob, 1.0 / 255.0, cv::Size(this->YOLO_INPUT_WIDTH, this->YOLO_INPUT_HEIGHT), cv::Scalar(), true, false, CV_32F);
         this->model.setInput(blob);
     }
@@ -180,8 +194,8 @@ void YOLO::ProcessFrame(cv::Mat &frame)
     std::vector<float> confidences;
     std::vector<cv::Rect> boxes;
 
-    const float x_factor = frame.cols / (float)this->YOLO_INPUT_WIDTH;
-    const float y_factor = frame.rows / (float)this->YOLO_INPUT_HEIGHT;
+    const float x_factor = frame.cols / static_cast<float>(this->YOLO_INPUT_WIDTH);
+    const float y_factor = frame.rows / static_cast<float>(this->YOLO_INPUT_HEIGHT);
 
     // Iterate over each row (each detection proposal)
     for (int i = 0; i < detection_matrix.rows; ++i)
@@ -198,7 +212,7 @@ void YOLO::ProcessFrame(cv::Mat &frame)
 
         if (max_score > this->CONFIDENCE_THRESHOLD)
         {
-            confidences.push_back((float)max_score);
+            confidences.push_back(static_cast<float>(max_score));
             class_ids.push_back(class_id_point.x);
 
             // Extract box coordinates

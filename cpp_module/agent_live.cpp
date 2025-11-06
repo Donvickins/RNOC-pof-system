@@ -1,8 +1,10 @@
 #if (_WIN32)
 #include "dxdiag.hpp"
 #include "Yolo.hpp"
-#include "utils.hpp"
+#include "Utils.hpp"
 #include <future>
+#include <mutex>
+#include <condition_variable>
 
 int main()
 {
@@ -18,11 +20,23 @@ int main()
     long long frameCount = 0;
     bool quit = false;
 
+    std::future<void> yolo_future;
+    std::mutex frame_mutex;
+    std::condition_variable c_var;
+    std::atomic<bool> frame_processed;
+
     YOLO model = YOLO();
     model.HardwareSummary();
-    LOG("Loading Model...");
-    model.Init();
-    LOG("Model Loaded Successfully...")
+    try {
+        model.Init();
+    }
+    catch (const cv::Exception& e) {
+        errorHandler(std::format("Failed to load model: {}", e.msg));
+        return -1;
+    }catch (const std::exception& e) {
+        errorHandler(std::format("Failed to Load model: {}", e.what()));
+        return -1;
+    }
 
     while (!quit)
     {
@@ -41,7 +55,7 @@ int main()
         int consecutive_failures = 0;
         constexpr int MAX_CONSECUTIVE_FAILURES = 5;
 
-        while (duplication_active && !quit)
+        while (!quit)
         {
             auto startTime = std::chrono::high_resolution_clock::now();
             if (!DG::GetScreenPixelsDXGI(ctx.pDesktopDupl, ctx.pDevice, ctx.pImmediateContext, width, height, pixelBuffer))
@@ -79,28 +93,43 @@ int main()
                 cv::Mat frame_bgr;
                 cv::cvtColor(frame, frame_bgr, cv::COLOR_BGRA2BGR);
 
-                // Process frame with YOLO
                 try
                 {
-                    std::future<void> process_frame = std::async(std::launch::async, [&]{model.ProcessFrame(frame_bgr);});
-                    std::future_status status = process_frame.wait_for(std::chrono::milliseconds(10));
-                    do 
-                    {
-                        handleWindow("Screenshot", frame_bgr, quit);
-                        status = process_frame.wait_for(std::chrono::milliseconds(10));
-                    }while(!quit && status != std::future_status::ready);
+                    cv::Mat display_frame;
+                    frame_processed.store(false);
+                    yolo_future = std::async(std::launch::async, [&model, &frame_processed, &frame_mutex, &c_var, &display_frame, frame_to_process = frame_bgr.clone()]() mutable {
+                        LOG("Processing frame...");
+                        model.ProcessFrame(frame_to_process);
+                        {
+                            std::lock_guard lock(frame_mutex);
+                            display_frame = frame_to_process.clone();
+                        }
+                        frame_processed = true;
+                        frame_processed.store(true);
+                        c_var.notify_one();
+                    });
+
+                    while (!quit) {
+                        {
+                            std::unique_lock lock(frame_mutex);
+                            if (display_frame.empty()) {
+                                c_var.wait(lock,[&frame_processed] {return frame_processed.load();});
+                            };
+                        }
+                        handleWindow("DXGI Feed", display_frame, quit);
+                        if (frame_processed)
+                            break;
+                    }
                 }
                 catch (const cv::Exception &e)
                 {
-                    LOG_ERR("OpenCV error during YOLO processing: " << e.what());
+                    LOG_ERR("OpenCV error during YOLO processing: " << e.msg);
                     LOG_ERR("Attempting to re-initialize DXGI and YOLO due to OpenCV error during processing.");
-                    duplication_active = false;
                     break;
                 }
-                catch (const std::exception &e)
+                catch (const std::exception&)
                 {
                     LOG_ERR("Error during YOLO processing");
-                    duplication_active = false;
                     break;
                 }
                 
@@ -126,6 +155,8 @@ int main()
         }
     }
     LOG("Screen capture stopped.");
+    if (yolo_future.valid())
+        yolo_future.wait();
     cv::destroyAllWindows(); // Ensure OpenCV windows are closed
     return 0;
 }

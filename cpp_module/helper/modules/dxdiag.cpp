@@ -4,6 +4,14 @@
 namespace DG
 {
 
+    void enableANSIColors() {
+        const HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD dwMode = 0;
+        if (GetConsoleMode(hOut, &dwMode)) {
+            SetConsoleMode(hOut, dwMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        }
+    }
+
     bool GetScreenPixelsDXGI(
         IDXGIOutputDuplication *pDuplication,
         ID3D11Device *pDevice,

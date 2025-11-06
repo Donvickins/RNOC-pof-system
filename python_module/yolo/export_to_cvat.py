@@ -1,0 +1,99 @@
+import shutil
+import yaml
+from pathlib import Path
+import sys
+import logging
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
+logger = logging.getLogger(__name__)
+
+base_path = Path.cwd().parent
+workspace = base_path / 'workspace'
+
+if not workspace.exists():
+    logger.error('Workspace directory not found')
+    sys.exit(1)
+#Paths
+class_names = workspace / 'classes.txt'
+
+if not class_names.exists():
+    logger.error(f"'classes.txt' file not found in {workspace}")
+    sys.exit(1)
+
+def copy_and_merge(src, dst):
+    if not Path.exists(dst):
+        shutil.copy2(src, dst)
+    else:
+        for item in Path.iterdir(src):
+            src_path = Path(src) / item.name
+            dst_path = Path(dst) / item.name
+            if Path.is_dir(src_path):
+                copy_and_merge(src_path, dst_path)
+            else:
+                shutil.copy2(src_path, dst_path)
+
+save_dir = workspace / 'export_to_cvat'
+
+Path.mkdir(save_dir, exist_ok=True)
+
+label_path = save_dir / 'labels'
+image_path = save_dir / 'images'
+
+Path.mkdir(label_path, exist_ok=True, parents=True)
+Path.mkdir(image_path, exist_ok=True, parents=True)
+
+is_images = next((True for p in Path.iterdir(workspace / 'images') if p.suffix.lower() in ['.png', '.jpg', '.jpeg']), False)
+
+if not is_images:
+    logger.error(f'No images found in {workspace / 'images'}')
+    sys.exit(1)
+
+images = [p for p in Path.iterdir(workspace / 'images') if p.suffix.lower() in ['.png', '.jpg', '.jpeg']]
+labels = [p.name for p in Path.iterdir(workspace / 'labels') if p.suffix.lower() == '.txt']
+
+logger.info(f'Found {len(images)} images and {len(labels)} labels...')
+
+for image_file in [p for p in Path.iterdir(workspace / 'images') if p.suffix.lower() in ['.png', '.jpg', '.jpeg']]:
+    label_name = image_file.stem + '.txt'
+    if not label_name in labels:
+        continue
+    copy_and_merge(Path(workspace / 'images' / image_file.name), Path(image_path / image_file.name))
+    copy_and_merge(Path(workspace / 'labels' / label_name), Path(label_path / label_name))
+    # path = Path('images/train', image_file.name)
+    # with open(Path(save_dir,'train.txt'), 'a') as train:
+    #     train.write(f'{path.as_posix()}\n')
+
+#Extract class names to create yaml config
+with open(class_names, 'r') as class_names_file:
+    classes = []
+    for line in class_names_file.readlines():
+      if len(line.strip()) == 0: continue
+      classes.append(line.strip())
+
+data = {
+    'path': '.',
+    'train': 'images',
+    'names': {key:value for key, value in enumerate(classes)}
+}
+
+# Write data to YAML file
+with open(Path(save_dir, 'data.yaml'), 'w') as f:
+    yaml.dump(data, f, sort_keys=False)
+
+logger.info('Compressing data...')
+archive = save_dir / 'cvat_export.zip'
+archive_temp = save_dir.parent / 'cvat_export.zip'
+
+if archive.exists():
+    archive.unlink()
+
+shutil.make_archive(str(archive_temp.with_suffix('').resolve()), 'zip', save_dir)
+
+for item in save_dir.iterdir():
+    if item.is_dir():
+        shutil.rmtree(item)
+    else:
+        item.unlink()
+
+archive_temp.replace(archive)
+logger.info(f'Exported successfully to: {save_dir}')
