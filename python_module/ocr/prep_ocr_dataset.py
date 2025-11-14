@@ -6,7 +6,7 @@ from ultralytics import YOLO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from python_module.pof.Utils.utils import get_class_name, get_site_id_from_image, site_id_2_binary
+from python_module.utils.utils import get_class_name, get_site_id_from_image, site_id_2_binary, extract_text
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 logger = logging.getLogger(__name__)
@@ -51,6 +51,10 @@ for idx, result in enumerate(results):
 
             site_id_binary = site_id_2_binary(site_id_image)
             cv2.imwrite(f'{str(save_img_dir)}/{image_name}', site_id_binary)
-            Path(save_img_dir/txt_file).touch()
+            label = Path(save_img_dir/txt_file)
+            label.touch()
+            with open(label, 'w') as f:
+                f.write(extract_text(site_id_binary))
+
 
 logger.info(f'Images saved to {save_img_dir}')
