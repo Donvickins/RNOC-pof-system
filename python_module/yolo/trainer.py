@@ -1,36 +1,40 @@
-from pathlib import Path
+import logging
 import random
 import os
 import sys
 import shutil
 import argparse
 import subprocess as command
+from pathlib import Path
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
+logger = logging.getLogger(__name__)
 
 # Define and parse user input arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--datapath', help='Path to data folder containing image and annotation files',
                     required=True)
 parser.add_argument('--train-pct', help='Ratio of images to go to train folder; \
-                    the rest go to validation folder (example: ".8")',
-                    default=.8)
-
+                    the rest go to validation folder (example: "80")',
+                    default=85)
 parser.add_argument('--install-deps', help='Do you want to install requirements',choices=['yes', 'no'], default='yes')
 
 args = parser.parse_args()
 
 data_path = args.datapath
-train_percentage = float(args.train_pct)
+train_percentage = int(args.train_pct)
 install_deps = args.install_deps
 
 data_path = Path(data_path).resolve()
 
 # Check for valid entries
 if not os.path.isdir(data_path):
-   print('Directory specified by --datapath not found. Verify the path is correct (and uses double back slashes if on Windows) and try again.')
-   sys.exit(1)
-if train_percentage < .01 or train_percentage > 0.99:
-   print('Invalid entry for train_pct. Please enter a number between .01 and .99.')
-   sys.exit(1)
+   logger.error('Directory specified by --datapath not found. Verify the path is correct (and uses double back slashes if on Windows) and try again.')
+   sys.exit(0)
+
+if 10 >= train_percentage <= 99:
+   logger.error('Invalid entry for train_pct. Please enter a number from 10 to 99')
+   sys.exit(0)
 
 # Define path to input dataset 
 input_image_path = os.path.join(data_path,'images')
@@ -39,13 +43,12 @@ input_class_names_path = os.path.join(data_path, 'classes.txt')
 config_yaml = os.path.join(data_path, 'config.yaml')
 
 if not os.path.exists(input_image_path) or not os.path.exists(input_label_path) or not os.path.exists(input_class_names_path):
-    print(f'Either Image Path: {input_image_path}, Label Path: {input_label_path}, or Class Name {input_class_names_path} does not exist in current directory')
+    logger.error(f'Either Image Path: {input_image_path}, Label Path: {input_label_path}, or Class Name {input_class_names_path} does not exist in current directory')
     sys.exit(0)
 
 #Prep workspace for dependencies 
 root_dir = Path.cwd()
 env_dir = root_dir / '.venv'
-req_dir = Path.resolve(root_dir/'requirements.txt')
 model_path = Path(root_dir) / 'model/best.pt'
 
 if not Path.exists(model_path):
@@ -69,15 +72,11 @@ elif os.name == 'nt':
     venv_python = os.path.join(env_dir, 'Scripts', 'python.exe')
     yolo_exec = os.path.join(env_dir, 'Scripts', 'yolo.exe')
 else:
-    print("Unknown Operating system")
+    logger.error("Unknown Operating system")
     sys.exit(1)
 
 if not os.path.exists(venv_pip) or not os.path.exists(venv_python):
-    print(f'pip and python not found in: {venv_pip} and {venv_python}')
-
-if not os.path.exists(req_dir):
-    print(f'Requirements.txt is not found in: {req_dir}')
-    sys.exit(1)
+    logger.error(f'pip and python not found in: {venv_pip} and {venv_python}')
 
 #Restart app in venv
 if sys.executable != venv_python:
@@ -88,9 +87,9 @@ if install_deps == 'yes':
     print('Installing Dependencies...')
     command.run([venv_python, '-m', 'ensurepip', '--upgrade'])
     command.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'])
-    dep_install = command.run([venv_python, '-m', 'pip','install', '-r', req_dir])
+    dep_install = command.run([venv_python, '-m', 'pip','install', 'ultralytics'])
     if dep_install.returncode != 0:
-        print("Installation failed: Try again...")
+        logger.error("Installation failed: Try again...")
         sys.exit(1)
 
 # Get list of all images and annotation files
@@ -98,11 +97,11 @@ img_file_list = [path for path in Path(input_image_path).rglob('*') if path.suff
 txt_file_list = [path for path in Path(input_label_path).rglob('*') if path.suffix.lower() == '.txt']
 
 if len(img_file_list) <= 0:
-    print('No images files found in the directory...')
+    logger.error('No images files found in the directory...')
     sys.exit(0)
 else:
-    print(f'Number of image files: {len(img_file_list)}')
-    print(f'Number of annotation files: {len(txt_file_list)}')
+    logger.error(f'Number of image files: {len(img_file_list)}')
+    logger.error(f'Number of annotation files: {len(txt_file_list)}')
 
 # Define paths to image and annotation folders
 workspace = os.path.abspath(os.path.join(data_path, 'training_data'))
@@ -115,11 +114,11 @@ validation_txt_path = os.path.join(workspace, 'validation', 'labels')
 for dir_path in [train_img_path, train_txt_path, validation_img_path, validation_txt_path]:
    if not os.path.exists(dir_path):
       os.makedirs(dir_path)
-      print(f'Created folder at: {dir_path}.')
+      logger.info(f'Created folder at: {dir_path}')
 
 # Determine number of files to move to each folder
 total_image_files = len(img_file_list)
-number_of_files_to_train = int(total_image_files*train_percentage)
+number_of_files_to_train = int(total_image_files*(train_percentage/100))
 number_of_validation_files = total_image_files - number_of_files_to_train
 
 print(f'Total Images to be used for training: {number_of_files_to_train}')
@@ -140,10 +139,8 @@ for i, set_num in enumerate([number_of_files_to_train, number_of_validation_file
       new_img_path, new_txt_path = validation_img_path, validation_txt_path
 
     shutil.copy(img_path, os.path.join(new_img_path,img_fn))
-    #os.rename(img_path, os.path.join(new_img_path,img_fn))
-    if os.path.exists(txt_path): # If txt path does not exist, this is a background image, so skip txt file
+    if os.path.exists(txt_path):
       shutil.copy(txt_path,os.path.join(new_txt_path,txt_fn))
-      #os.rename(txt_path,os.path.join(new_txt_path,txt_fn))
 
     img_file_list.remove(img_path)
 
@@ -157,7 +154,6 @@ with open(input_class_names_path, 'r') as class_names_file:
 number_of_classes = len(classes)
 
 # Data to write to config.yaml
-
 data = {
     'path': os.path.join(workspace),
     'train': os.path.join(workspace, 'train', 'images'),

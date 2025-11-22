@@ -36,8 +36,8 @@ save_dir = workspace / 'export_to_cvat'
 
 Path.mkdir(save_dir, exist_ok=True)
 
-label_path = save_dir / 'labels'
-image_path = save_dir / 'images'
+label_path = save_dir / 'labels/train'
+image_path = save_dir / 'images/train'
 
 Path.mkdir(label_path, exist_ok=True, parents=True)
 Path.mkdir(image_path, exist_ok=True, parents=True)
@@ -59,7 +59,7 @@ for image_file in [p for p in Path.iterdir(workspace / 'images') if p.suffix.low
         continue
     copy_and_merge(Path(workspace / 'images' / image_file.name), Path(image_path / image_file.name))
     copy_and_merge(Path(workspace / 'labels' / label_name), Path(label_path / label_name))
-    # path = Path('images/train', image_file.name)
+    # path = Path('data/images/train/images', image_file.name)
     # with open(Path(save_dir,'train.txt'), 'a') as train:
     #     train.write(f'{path.as_posix()}\n')
 
@@ -71,9 +71,9 @@ with open(class_names, 'r') as class_names_file:
       classes.append(line.strip())
 
 data = {
+    'names': {key:value for key, value in enumerate(classes)},
     'path': '.',
-    'train': 'images',
-    'names': {key:value for key, value in enumerate(classes)}
+    'train': 'images'
 }
 
 # Write data to YAML file
