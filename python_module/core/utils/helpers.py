@@ -8,7 +8,7 @@ from scipy.spatial.distance import cdist
 from typing import Union
 from pathlib import Path
 from fuzzywuzzy import fuzz
-from python_module.utils.exception_handler import InvalidImageException
+from core.utils.exception_handler import InvalidImageException
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def extract_text(img) -> str | None:
         return None
 
 
-def site_id_2_binary(img) -> cv2.Mat:
+def site_id_2_binary(img):
     """
     This converts an image into black and white color, processes the image to be used for OCR
 
@@ -76,7 +76,7 @@ def site_id_2_binary(img) -> cv2.Mat:
     mask = cv2.resize(mask, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR)
     return mask
 
-def get_site_id_from_image(image_path: Union[str, Path, cv2.Mat], node_bbox):
+def get_site_id_from_image(image_path: Union[str, Path, np.ndarray], node_bbox) -> Union[None, np.ndarray]:
     """
     Crops the site ID from a node image and performs OCR.
     Args:
@@ -95,7 +95,7 @@ def get_site_id_from_image(image_path: Union[str, Path, cv2.Mat], node_bbox):
         img = image_path
 
     if img is None:
-        logger.error(f"Error: Could not load image from {image_path}")
+        logger.error(f"Could not load image")
         return None
 
     x_min, y_min, x_max, y_max = [int(coord) for coord in node_bbox]
@@ -122,15 +122,15 @@ def get_site_id_from_image(image_path: Union[str, Path, cv2.Mat], node_bbox):
         site_id_image = img[row_start:row_end, col_start:col_end]
     else:
         logger.warning("Site ID region is out of bounds or invalid.")
-        return 'out of bounds'
+        return None
 
     if site_id_image.size == 0:
         logger.warning("Cropped image is empty. Bounding box may be invalid.")
-        return 'out of bounds'
+        return None
 
     return site_id_image
 
-def get_site_id_from_node(image_path: Union[str, Path, cv2.Mat], node_bbox) -> str | None:
+def get_site_id_from_node(image_path: Union[str, Path, np.ndarray], node_bbox) -> str | None:
     """
     Crops the site ID from a node image and performs OCR.
     Args:
@@ -142,7 +142,9 @@ def get_site_id_from_node(image_path: Union[str, Path, cv2.Mat], node_bbox) -> s
     """
     site_id_image = get_site_id_from_image(image_path, node_bbox)
 
-    # Convert the cropped image to grayscale for better OCR performance
+    if site_id_image is None or site_id_image.size == 0:
+        return 'invalid'
+
     site_id_binary_image = site_id_2_binary(site_id_image)
     txt = extract_text(site_id_binary_image)
 
@@ -222,7 +224,7 @@ def create_edges_tensor(edges: list, node_centers: list) -> dict:
             logger.debug(f"Edge discarded: {reason}")
 
     if discarded_edges > 0:
-        logger.warning(f"Discarded {discarded_edges} edges due to invalid connections.")
+        logger.warning(f"Discarded {discarded_edges} links due to invalid connections.")
 
     edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous() if edge_list else torch.empty((2, 0), dtype=torch.long).contiguous()
     edge_attr = torch.tensor(edge_attributes, dtype=torch.float) if edge_attributes else torch.empty((0, 6), dtype=torch.float)
@@ -256,6 +258,8 @@ def extract_data_from_YOLO(result: list, img: Union[str, Path]) -> list:
         elif any(class_name.startswith(p) for p in ['ATN', 'RTN', 'Router', 'Switch']):
             node_type = class_name.split('_')[0]
             site_id = get_site_id_from_node(image_path=img, node_bbox=bbox)
+            if site_id == 'invalid' or not site_id:
+                continue
             node = {'id': site_id, 'type': node_type, 'color': color, 'center': center}
             nodes.append(node)
 

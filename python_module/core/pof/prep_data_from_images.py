@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 import torch
 from torch_geometric.data import Data
-from python_module.utils import utils
+from core.utils import helpers as  utils
 from fuzzywuzzy import fuzz
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')

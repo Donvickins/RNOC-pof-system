@@ -1,18 +1,16 @@
 import sys
-import uvicorn
 import base64
 import binascii
 import logging
 from fastapi import FastAPI, status, Request
-from utils.schema import Request as pofRequest, Response as pofResponse
+from core.utils.schema import Request as pofRequest, Response as pofResponse
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from utils.exception_handler import InvalidImageException, SiteIdNotFoundInImage
-from utils.pof import pof, prep_models
-from utils.config import LOG_CONFIG
+from core.utils.pof import pof, prep_models
 from pathlib import Path
-from python_module.pof.GNN.GModel import GNN
+from core.pof.GNN.GModel import GNN
 from ultralytics import YOLO
+from core.utils.exception_handler import InvalidImageException, SiteIdNotFoundInImage
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +24,9 @@ yolo_model, gnn_model = prep_models(yolo_model_path, gnn_model_path)
 if not isinstance(yolo_model, YOLO) or not isinstance(gnn_model, GNN):
     logger.error('[ERROR]: Failed to load models')
     sys.exit(1)
+
+save_dir = Path('workspace/received_images')
+save_dir.mkdir(exist_ok=True, parents=True)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -58,25 +59,34 @@ async def generic_exception_handler(request: Request, exc: Exception):
 @app.post('/pof')
 async def check_pof(request: pofRequest):
     try:
-        image_bytes = base64.b64decode(request.base64_image)
+        image_bytes = base64.b64decode(request.image_base64)
     except binascii.Error:
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"message": "Invalid base64 string"})
 
-    predicted_pof, accuracy = pof(image_bytes,request.site_id,yolo_model, gnn_model)
-    accuracy = accuracy * 100
-    accuracy = round(accuracy, 2)
-    return pofResponse(site_id=request.site_id, pof=predicted_pof, certainty=accuracy)
+    try:
+        predicted_pof, accuracy = pof(image_bytes,request.site_id,yolo_model, gnn_model)
+        accuracy = accuracy * 100
+        accuracy = round(accuracy, 2)
+    except InvalidImageException:
+        raise
+    except SiteIdNotFoundInImage as e:
+        raise
+    except Exception as e:
+        logger.error(f'Unexpected error occurred while processing order id: {request.order_id}. Reason: {e}')
+        raise
+
+    try:
+        image_path = save_dir / f'{request.order_id}.png'
+        with open(image_path, 'wb') as file:
+            file.write(image_bytes)
+    except Exception as e:
+        logger.error(f'Failed to save image received from OWS. Reason: {e}')
+
+    return pofResponse(site_id=request.site_id, pof=predicted_pof, certainty=accuracy, order_id=request.order_id)
 
 @app.get('/health')
 async def health_check(request: Request):
-    return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "OK"})
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "OK OWS"})
 
 if __name__ == '__main__':
-    uvicorn.run(
-        'pof_server:app',
-        host='0.0.0.0',
-        port=5000,
-        reload=True,
-        log_config=LOG_CONFIG,
-        reload_excludes=['logs','logs/*.log']
-    )
+    sys.exit(0)

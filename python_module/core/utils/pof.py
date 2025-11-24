@@ -5,13 +5,9 @@ import torch
 import numpy as np
 from fuzzywuzzy import fuzz
 from ultralytics import YOLO
-from pathlib import Path
-
-sys.path.insert(0, str(Path.cwd().resolve().parent))
-
-from python_module.utils import utils
-from python_module.pof.GNN.GModel import GNN
-from python_module.utils.exception_handler import InvalidImageException, SiteIdNotFoundInImage
+from core.utils import helpers as utils
+from core.pof.GNN.GModel import GNN
+from core.utils.exception_handler import InvalidImageException, SiteIdNotFoundInImage
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -32,7 +28,7 @@ def prep_models(yolo_model_path, gnn_model_path):
 
         logger.info(f'YOLO model loaded from: {yolo_model_path}')
 
-        gnn_model = load_gnn_model(
+        gnn_model = load_gnn_model( # from .pof.GNN.GModel import GNN
             model_path=gnn_model_path,
             in_channels=11,  # 4 (type) + 6 (color + down_id)
             hidden_channels=128,
@@ -49,6 +45,7 @@ def prep_models(yolo_model_path, gnn_model_path):
 
     return yolo_model, gnn_model
 
+
 def load_gnn_model(model_path, in_channels, hidden_channels, num_edge_features):
     """
     Loads the trained GNN model and sets it to evaluation mode.
@@ -57,7 +54,7 @@ def load_gnn_model(model_path, in_channels, hidden_channels, num_edge_features):
         logger.error('GNN model path does not exist')
         raise FileNotFoundError(f'GNN model path does not exist in: {model_path}')
 
-    model = GNN(
+    model = GNN( # from .pof.GNN.GModel import GNN
         in_channels=in_channels,
         hidden_channels=hidden_channels,
         num_edge_features=num_edge_features
@@ -66,6 +63,7 @@ def load_gnn_model(model_path, in_channels, hidden_channels, num_edge_features):
     model.load_state_dict(torch.load(model_path, weights_only=True))
     model.eval()
     return model
+
 
 def interpret_pof_predictions(pof_logits, has_pof_logit, node_ids):
     """
@@ -79,7 +77,6 @@ def interpret_pof_predictions(pof_logits, has_pof_logit, node_ids):
     pred_site_id = node_ids[pred_idx]
     pred_prob = probs[pred_idx].item()
     return pred_site_id, pred_prob
-
 
 def pof(image, down_id: str, yolo_model, gnn_model):
     """
@@ -98,10 +95,10 @@ def pof(image, down_id: str, yolo_model, gnn_model):
 
     if image is None or image.size == 0:
         logger.error('Invalid image')
-        raise InvalidImageException('Image invalid')
+        raise InvalidImageException('Image is not valid')
 
     # Run YOLO model on the image
-    yolo_data = yolo_model.predict(source=image, save=False, conf=0.5, verbose=False)
+    yolo_data = yolo_model.predict(source=image, save=False, verbose=False, device='cuda' if torch.cuda.is_available() else 'cpu')
     result = yolo_data[0]
 
     # b) class-wise counts
@@ -130,11 +127,11 @@ def pof(image, down_id: str, yolo_model, gnn_model):
     # Validate graph
     if len(node_data['node_ids']) == 0:
         logger.error('No valid nodes extracted from image')
-        raise Exception('No valid nodes extracted from image')
+        raise ValueError('No valid nodes extracted from image')
 
     if not isinstance(edge_data['edge_index'], torch.Tensor) or edge_data['edge_index'].shape[0] != 2:
         logger.error(f'Invalid edge_index: {edge_data["edge_index"]}')
-        raise Exception('Invalid edge index')
+        raise ValueError('Invalid edge index')
 
     if edge_data['edge_index'].size(1) == 0:
         logger.warning('No valid edges detected in the graph, proceeding with isolated nodes.')
@@ -167,5 +164,5 @@ def pof(image, down_id: str, yolo_model, gnn_model):
     # Interpret predictions
     return interpret_pof_predictions(pof_logits, has_pof_logit, node_data['node_ids'])
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(0)

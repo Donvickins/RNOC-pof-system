@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-logs_dir = Path('logs')
+logs_dir = Path('../../logs').resolve()
 log_file = logs_dir / 'app.log'
 
 if not logs_dir.exists():

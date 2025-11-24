@@ -7,21 +7,21 @@ from pydantic_core import PydanticCustomError
 from datetime import datetime
 
 class Request(BaseModel):
-    base64_image: str
     site_id: str
-
-    @field_validator('base64_image', mode='after')
+    order_id: str
+    image_base64: str
+    @field_validator('image_base64', mode='after')
     @classmethod
     def validate_base64_image(cls, v):
         if not v or not v.strip():
-            raise PydanticCustomError('empty_value', "base64_image must not be empty")
+            raise PydanticCustomError('empty_value', "base64 image must not be empty")
         try:
             base64.b64decode(v, validate=True)
             return v
         except binascii.Error:
             raise PydanticCustomError('invalid_base64', "Invalid base64 string")
 
-    @field_validator('site_id')
+    @field_validator('site_id', 'order_id', mode='after')
     @classmethod
     def validate_site_id(cls, v: str) -> str:
         if not v or not v.strip():
@@ -31,8 +31,19 @@ class Request(BaseModel):
             )
         return v
 
+    @field_validator('order_id', mode='after')
+    @classmethod
+    def validate_order_id(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise PydanticCustomError(
+                "empty_value",
+                "order_id must not be empty"
+            )
+        return v
+
 class Response(BaseModel):
     site_id: str
+    order_id: str
     pof: str
     certainty: float
     _created_at: str = PrivateAttr()
@@ -53,22 +64,21 @@ class Response(BaseModel):
             self._created_at = now_str
             self._modified_at = now_str
             self._task_id = uuid.uuid4()
-        elif self.model_fields_set.intersection({'image', 'site_id', 'pof'}):
+        elif self.model_fields_set.intersection({'order_id', 'site_id', 'pof'}):
             # Instance already exists and a tracked field was modified
             self._modified_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return self
 
-    @computed_field
+    #@computed_field
     @property
     def created_at(self) -> str:
         return self._created_at
 
-    @computed_field
+    #@computed_field
     @property
     def modified_at(self) -> str:
         return self._modified_at
 
-    @computed_field
     @property
     def task_id(self) -> UUID:
         return self._task_id

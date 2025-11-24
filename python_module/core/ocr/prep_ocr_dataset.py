@@ -3,10 +3,7 @@ import sys
 from pathlib import Path
 import cv2
 from ultralytics import YOLO
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from python_module.utils.utils import get_class_name, get_site_id_from_image, site_id_2_binary, extract_text
+from core.utils.helpers import get_class_name, get_site_id_from_image, site_id_2_binary, extract_text
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 logger = logging.getLogger(__name__)
