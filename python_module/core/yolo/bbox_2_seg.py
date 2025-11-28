@@ -7,7 +7,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 
-workspace = Path.cwd().parents[2] / 'workspace' / 'merge'
+workspace = Path.cwd().parents[1] / 'workspace' / 'merge'
 bbox_dir = workspace / 'bbox_2_segment'
 images_dir = workspace / 'images'
 

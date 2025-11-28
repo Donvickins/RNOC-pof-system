@@ -12,12 +12,12 @@ parser.add_argument('--datapath', help='Path to data folder containing image and
                     required=True)
 parser.add_argument('--train-pct', help='Ratio of images to go to train folder; \
                     the rest go to validation folder (example: ".8")',
-                    default=.8)
+                    default=85)
 
 args = parser.parse_args()
 
 data_path = args.datapath
-train_percentage = float(args.train_pct)
+train_percentage = int(args.train_pct)
 
 data_path = Path(data_path).resolve()
 # Check for valid entries
@@ -25,17 +25,17 @@ if not os.path.isdir(data_path):
    print('Directory specified by --datapath not found. Verify the path is correct (and uses double back slashes if on Windows) and try again.')
    sys.exit(1)
 
-if train_percentage < .01 or train_percentage > 0.99:
+if 10 >= train_percentage <= 99:
    print('Invalid entry for train_pct. Please enter a number between .01 and .99.')
    sys.exit(1)
 
 # Define path to input dataset 
-input_image_path = os.path.join(data_path,'images')
-input_label_path = os.path.join(data_path,'labels')
-input_class_names_path = os.path.join(data_path, 'classes.txt')
-config_yaml = os.path.join(data_path, 'config.yaml')
+input_image_path = Path(data_path,'images')
+input_label_path = Path(data_path,'labels')
+input_class_names_path = Path(data_path, 'classes.txt')
+config_yaml = Path(data_path, 'config.yaml')
 
-if not os.path.exists(input_image_path) or not os.path.exists(input_label_path) or not os.path.exists(input_class_names_path):
+if not input_image_path.exists() or not input_label_path.exists() or not input_class_names_path.exists():
     print(f'Either Image Path: {input_image_path}, Label Path: {input_label_path}, or Class Name {input_class_names_path} does not exist in current directory')
     sys.exit(0)
 
@@ -44,7 +44,7 @@ root_dir = os.path.abspath(os.path.dirname(__file__))
 model_path = Path(root_dir) / 'model/best.pt'
 
 if not Path.exists(model_path):
-    model_path = Path(root_dir) / 'model/yolov8l-seg.pt'
+    model_path = 'yolov8l-seg.pt'
 
 # Get list of all images and annotation files
 img_file_list = [path for path in Path(input_image_path).rglob('*') if path.suffix.lower() in ['.png', '.jpg']]
@@ -58,11 +58,11 @@ else:
     print(f'Number of annotation files: {len(txt_file_list)}')
 
 # Define paths to image and annotation folders
-workspace = os.path.abspath(os.path.join(data_path, 'training_data'))
-train_img_path = os.path.join(workspace, 'train', 'images')
-train_txt_path = os.path.join(workspace, 'train', 'labels')
-validation_img_path = os.path.join(workspace, 'validation', 'images')
-validation_txt_path = os.path.join(workspace, 'validation', 'labels')
+workspace = data_path / 'training_data'
+train_img_path = workspace / 'train/images'
+train_txt_path = workspace / 'train/labels'
+validation_img_path = workspace / 'validation/images'
+validation_txt_path = workspace / 'validation/labels'
 
 # Create folders if they don't already exist
 for dir_path in [train_img_path, train_txt_path, validation_img_path, validation_txt_path]:
@@ -73,7 +73,7 @@ for dir_path in [train_img_path, train_txt_path, validation_img_path, validation
 
 # Determine number of files to move to each folder
 total_image_files = len(img_file_list)
-number_of_files_to_train = int(total_image_files*train_percentage)
+number_of_files_to_train = int(total_image_files * (train_percentage/100))
 number_of_validation_files = total_image_files - number_of_files_to_train
 
 print(f'Total Images to be used for training: {number_of_files_to_train}')
@@ -117,6 +117,8 @@ data = {
     'train': os.path.join(workspace, 'train', 'images'),
     'val': os.path.join(workspace, 'validation','images'),
     'nc': number_of_classes,
+    'simplify': 'true',
+    'simplify_eps': 0.003,
     'names': {key:value for key, value in enumerate(classes)}
 }
 

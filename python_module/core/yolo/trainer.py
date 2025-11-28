@@ -37,30 +37,31 @@ if 10 >= train_percentage <= 99:
    sys.exit(0)
 
 # Define path to input dataset 
-input_image_path = os.path.join(data_path,'images')
-input_label_path = os.path.join(data_path,'labels')
-input_class_names_path = os.path.join(data_path, 'classes.txt')
-config_yaml = os.path.join(data_path, 'config.yaml')
+input_image_path = Path(data_path,'images')
+input_label_path = Path(data_path,'labels')
+input_class_names_path = Path(data_path, 'classes.txt')
+config_yaml = Path(data_path, 'config.yaml')
 
-if not os.path.exists(input_image_path) or not os.path.exists(input_label_path) or not os.path.exists(input_class_names_path):
+if not input_image_path.exists() or not input_label_path.exists() or not input_class_names_path.exists():
     logger.error(f'Either Image Path: {input_image_path}, Label Path: {input_label_path}, or Class Name {input_class_names_path} does not exist in current directory')
     sys.exit(0)
 
-#Prep workspace for dependencies 
+#Prep workspace for dependencies
+project_root = Path.cwd().parents[1]
 root_dir = Path.cwd()
 env_dir = root_dir / '.venv'
-model_path = Path(root_dir) / 'model/best.pt'
+model_path = project_root / 'models/YOLO/best.pt'
 
 if not Path.exists(model_path):
-    model_path = Path(root_dir) / 'model/yolov8l-seg.pt'
+    model_path = 'yolov8l-seg.pt'
 
 #Create new venv
 if not os.path.exists(env_dir):
     try:
         command.run([sys.executable, '-m' , 'venv', '.venv'], cwd=root_dir ,check=True)
-        print("Environment Created Successfully")
+        logger.info("Environment Created Successfully")
     except command.CalledProcessError as e:
-        print(f'Environment Creation failed with error: {e}')
+        logger.info(f'Environment Creation failed with error: {e}')
         sys.exit(1)
 
 if os.name == 'posix':
@@ -84,7 +85,7 @@ if sys.executable != venv_python:
 
 #Install Dependencies
 if install_deps == 'yes':   
-    print('Installing Dependencies...')
+    logger.info('Installing Dependencies...')
     command.run([venv_python, '-m', 'ensurepip', '--upgrade'])
     command.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'])
     dep_install = command.run([venv_python, '-m', 'pip','install', 'ultralytics'])
@@ -104,16 +105,16 @@ else:
     logger.error(f'Number of annotation files: {len(txt_file_list)}')
 
 # Define paths to image and annotation folders
-workspace = os.path.abspath(os.path.join(data_path, 'training_data'))
-train_img_path = os.path.join(workspace, 'train', 'images')
-train_txt_path = os.path.join(workspace, 'train', 'labels')
-validation_img_path = os.path.join(workspace, 'validation', 'images')
-validation_txt_path = os.path.join(workspace, 'validation', 'labels')
+workspace = data_path / 'training_data'
+train_img_path = workspace / 'train/images'
+train_txt_path = workspace / 'train/labels'
+validation_img_path = workspace / 'validation/images'
+validation_txt_path = workspace / 'validation/labels'
 
 # Create folders if they don't already exist
 for dir_path in [train_img_path, train_txt_path, validation_img_path, validation_txt_path]:
-   if not os.path.exists(dir_path):
-      os.makedirs(dir_path)
+   if not dir_path.exists():
+      dir_path.mkdir(exist_ok=True, parents=True)
       logger.info(f'Created folder at: {dir_path}')
 
 # Determine number of files to move to each folder
@@ -121,8 +122,8 @@ total_image_files = len(img_file_list)
 number_of_files_to_train = int(total_image_files*(train_percentage/100))
 number_of_validation_files = total_image_files - number_of_files_to_train
 
-print(f'Total Images to be used for training: {number_of_files_to_train}')
-print(f'Total Images to be used for validation: {number_of_validation_files}')
+logger.info(f'Total Images to be used for training: {number_of_files_to_train}')
+logger.info(f'Total Images to be used for validation: {number_of_validation_files}')
 
 # # Select files randomly and copy them to train or val folders
 for i, set_num in enumerate([number_of_files_to_train, number_of_validation_files]):
@@ -131,16 +132,16 @@ for i, set_num in enumerate([number_of_files_to_train, number_of_validation_file
     img_fn = img_path.name
     base_fn = img_path.stem
     txt_fn = base_fn + '.txt'
-    txt_path = os.path.join(input_label_path,txt_fn)
+    txt_path = Path(input_label_path ,txt_fn)
 
     if i == 0: # Copy first set of files to train folders
       new_img_path, new_txt_path = train_img_path, train_txt_path
     elif i == 1: # Copy second set of files to the validation folders
       new_img_path, new_txt_path = validation_img_path, validation_txt_path
 
-    shutil.copy(img_path, os.path.join(new_img_path,img_fn))
+    shutil.copy(img_path, Path(new_img_path,img_fn))
     if os.path.exists(txt_path):
-      shutil.copy(txt_path,os.path.join(new_txt_path,txt_fn))
+      shutil.copy(txt_path, Path(new_txt_path,txt_fn))
 
     img_file_list.remove(img_path)
 
@@ -159,6 +160,8 @@ data = {
     'train': os.path.join(workspace, 'train', 'images'),
     'val': os.path.join(workspace, 'validation','images'),
     'nc': number_of_classes,
+    'simplify': 'true',
+    'simplify_eps': 0.003,
     'names': {key:value for key, value in enumerate(classes)}
 }
 
@@ -168,14 +171,14 @@ import yaml
 with open(config_yaml, 'w') as f:
     yaml.dump(data, f, sort_keys=False)
 
-print(f'Created config file at: {config_yaml}')
+logger.info(f'Created config file at: {config_yaml}')
 model = Path(model_path)
 model_name = model.name
-print(f'Training Model {model_name} at: {model_path}')
+logger.info(f'Training Model {model_name} at: {model_path}')
 
 try:
     train = command.run([
         yolo_exec, 'task=segment', 'mode=train', f'data={config_yaml}', f'model={model_path}', 'patience=100', 'epochs=200', 'imgsz=640'
     ], text=True, check=True)
 except command.CalledProcessError as e:
-    print(f"Failed to train: {e}")
+    logger.error(f"Failed to train: {e}")

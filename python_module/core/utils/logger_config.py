@@ -1,7 +1,13 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This contains logging configuration for the application
+"""
+
 import sys
 from pathlib import Path
 
-logs_dir = Path('../../logs').resolve()
+logs_dir = Path('logs').resolve()
 log_file = logs_dir / 'app.log'
 
 if not logs_dir.exists():

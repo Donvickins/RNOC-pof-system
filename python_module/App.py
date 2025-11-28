@@ -1,3 +1,9 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This is our programs entry point
+"""
+
 import uvicorn
 from pathlib import Path
 from core.utils.logger_config import LOG_CONFIG

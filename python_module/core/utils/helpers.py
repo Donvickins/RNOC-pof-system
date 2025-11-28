@@ -1,21 +1,27 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This contains all utility functions necessary to run the app
+"""
+
 import pytesseract
 import logging
 import cv2
 import sys
 import torch
+import shutil
 import numpy as np
 from scipy.spatial.distance import cdist
 from typing import Union
 from pathlib import Path
 from fuzzywuzzy import fuzz
 from core.utils.exception_handler import InvalidImageException
+from core.utils.node_type_config import NODE_TYPE, COLOR_MAP
 
 logger = logging.getLogger(__name__)
-
 # --- Constants and Mappings ---
-TYPE_MAP = {'ATN': [1, 0, 0, 0], 'RTN': [0, 1, 0, 0], 'Router': [0, 0, 1, 0], 'Switch': [0, 0, 0, 1]}
-COLOR_MAP = {'Red': [1, 0, 0, 0, 0, 0], 'Green': [0, 1, 0, 0, 0, 0], 'Blue': [0, 0, 1, 0, 0, 0],
-             'Yellow': [0, 0, 0, 1, 0, 0], 'Orange': [0, 0, 0, 0, 1, 0], 'Gray': [0, 0, 0, 0, 0, 1]}
+TYPE_MAP = {node_type: [1 if i == j else 0 for i in range(len(NODE_TYPE))] for j, node_type in enumerate(NODE_TYPE)}
+
 MAX_DIST_THRESH = 50
 
 def extract_text(img) -> str | None:
@@ -255,7 +261,7 @@ def extract_data_from_YOLO(result: list, img: Union[str, Path]) -> list:
             x_min, y_min, x_max, y_max = boxes.xyxy[key].cpu().detach().numpy().tolist()
             edge = {'color': color, 'endpoints': [(x_min, y_min), (x_max, y_max)]}
             edges.append(edge)
-        elif any(class_name.startswith(p) for p in ['ATN', 'RTN', 'Router', 'Switch']):
+        elif any(class_name.startswith(p) for p in ['ATN', 'RTN', 'Router', 'Switch', 'HubSite']):
             node_type = class_name.split('_')[0]
             site_id = get_site_id_from_node(image_path=img, node_bbox=bbox)
             if site_id == 'invalid' or not site_id:
@@ -264,6 +270,47 @@ def extract_data_from_YOLO(result: list, img: Union[str, Path]) -> list:
             nodes.append(node)
 
     return [nodes, edges]
+
+def copy_and_merge(src, dst):
+    if not Path.exists(dst):
+        shutil.copy2(src, dst)
+    else:
+        for item in Path.iterdir(src):
+            src_path = Path(src) / item.name
+            dst_path = Path(dst) / item.name
+            if Path.is_dir(src_path):
+                copy_and_merge(src_path, dst_path)
+            else:
+                shutil.copy2(src_path, dst_path)
+
+def move_and_merge(src: Path, dst: Path):
+    """
+    Recursively moves files and directories from src to dst.
+    If dst does not exist, src is moved to dst.
+    If dst exists, the contents of src are moved into dst, merging directories.
+    """
+    if not dst.exists():
+        try:
+            shutil.move(str(src), str(dst))
+        except PermissionError as e:
+            logger.error(f"Permission denied to move {src} to {dst}. The file might be in use. Error: {e}")
+        return
+
+    if not src.is_dir():
+        try:
+            shutil.move(str(src), str(dst))
+        except PermissionError as e:
+            logger.error(f"Permission denied to move file {src} into {dst}. The file might be in use. Error: {e}")
+    else:
+        for src_path in src.iterdir():
+            dst_path = dst / src_path.name
+            if src_path.is_dir():
+                move_and_merge(src_path, dst_path)
+            else:
+                try:
+                    shutil.move(str(src_path), str(dst_path))
+                except PermissionError as e:
+                    logger.error(f"Permission denied to move file {src_path} to {dst_path}. The file might be in use. Error: {e}")
 
 if __name__ == '__main__':
     sys.exit(0)

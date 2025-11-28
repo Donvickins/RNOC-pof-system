@@ -1,73 +1,117 @@
-import torch
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This strip auto annotates/label new images and prepares labels that may be imported to CVAT AI in preparation for supervised learning
+and finetuning of YOLO model
+"""
+
 import sys
+import numpy as np
 import logging
-import shutil
-from ultralytics import YOLO
 from pathlib import Path
+import torch
+
+FILE = Path(__file__).resolve()
+# Determine the base directory depending on whether the script is running as a standalone executable or from source
+if getattr(sys, 'frozen', False):
+    # If the application is run as a bundle/executable, the base dir is the executable's directory
+    BASE_DIR = Path(sys.executable).parent
+else:
+    # If running from source, the base dir is the project root (3 levels up from this script)
+    BASE_DIR = FILE.parents[2]
+    if str(BASE_DIR) not in sys.path:
+        sys.path.append(str(BASE_DIR))
+
+from ultralytics.data.annotator import auto_annotate
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 logger = logging.getLogger(__name__)
 
-def move_and_merge(src, dst):
-    if not dst.exists():
-        shutil.move(src, dst)
-    else:
-        for src_path in src.iterdir():
-            dst_path = dst/ src_path.name
-            if src_path.is_dir():
-                move_and_merge(src_path, dst_path)
-            else:
-                shutil.move(src_path, dst_path)
+WORKSPACE_DIR = BASE_DIR / 'workspace'
+IMAGE_DIR = WORKSPACE_DIR / 'images'
+OUTPUT_DIR = WORKSPACE_DIR / 'auto_labelled'
+MODEL_PATH = BASE_DIR / 'models' / 'YOLO' / 'best.pt'
 
-workspace = Path.cwd().parents[2] / 'workspace'
-image_dir = workspace/ 'images'
-output_dir = workspace / 'auto_labelled'
-labelled_image_dir = output_dir / 'labelled_images'
-auto_labelled_dir = output_dir / 'labels'
-temp_annotated = output_dir / 'temp'
+labelled_image_dir = OUTPUT_DIR / 'labelled_images'
+auto_labelled_dir = OUTPUT_DIR / 'labels'
+temp_annotated = OUTPUT_DIR / 'temp'
 
-if not image_dir.is_dir():
+if not IMAGE_DIR.is_dir():
     logger.info('Images directory does not exist')
     sys.exit(0)
 
-total_images = list(image_dir.glob('*.jpg')) + list(image_dir.glob('*.png'))
-if not next((True for file in total_images), False):
+total_images = list(IMAGE_DIR.glob('*.jpg')) + list(IMAGE_DIR.glob('*.png'))
+if not total_images:
     logger.info('Images directory does not contain any image files')
     sys.exit(0)
 
-output_dir.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 labelled_image_dir.mkdir(parents=True, exist_ok=True)
 
-model_path = Path.cwd().parent / 'models' / 'YOLO' / 'best.pt'
-model = YOLO(model_path)
-
-model.predict(
-    source=image_dir,
-    save=True,
-    save_txt=True,
-    show_labels=True,
-    show_conf=True,
-    project=output_dir,
-    name=temp_annotated,
+auto_annotate(
+    data=str(IMAGE_DIR),
+    det_model=str(MODEL_PATH),
+    sam_model='sam_b.pt',
+    output_dir=str(auto_labelled_dir),
     device='cuda' if torch.cuda.is_available() else 'cpu'
 )
 
-runs = []
-for content in output_dir.iterdir():
-    if content.is_dir() and content.name.startswith('temp'):
-        runs.append(content.name[4:])
+def simplify_polygon(coords, epsilon=0.002):
+    """
+        Clean Ramer-Douglas-Peucker
+        This algorithm takes the multipoint polygon annotations of YOLO segmentation model and SAM
+        and create a more simplified polygon to be imported to CVAT AI.
+        This makes it easier for a human to correct errors in the models annotation
+    """
 
-if len(runs) != 0:
-    max_run = max(runs)
-    temp_annotated = Path(str(temp_annotated) + max_run)
+    points = np.array(coords).reshape(-1, 2)
+    if len(points) < 4:
+        return points.flatten().tolist()
 
-a_label_dir = temp_annotated / 'labels'
-move_and_merge(a_label_dir, auto_labelled_dir)
-move_and_merge(temp_annotated, labelled_image_dir)
-shutil.rmtree(temp_annotated)
+    def _rdp(pts):
+        if len(pts) <= 2:
+            return pts
+        # Line from start to end
+        start, end = pts[0], pts[-1]
+        line_vec = end - start
+        # Distances from line
+        dists = np.abs(np.cross(line_vec, pts - start)) / np.linalg.norm(line_vec)
+        max_idx = np.argmax(dists)
+        if dists[max_idx] > epsilon:
+            left = _rdp(pts[:max_idx+1])
+            right = _rdp(pts[max_idx:])
+            return np.vstack((left[:-1], right))
+        return np.array([start, end])
 
-for content in output_dir.iterdir():
-    if content.is_dir() and content.name.startswith('temp'):
-        shutil.rmtree(content)
+    simplified = _rdp(points)
+    # Close polygon
+    if len(simplified) > 0 and not np.allclose(simplified[0], simplified[-1]):
+        simplified = np.vstack((simplified, simplified[0]))
+    return simplified.flatten().tolist()
 
-logger.info(f'Completed Successfully: Check: {output_dir}')
+logger.info("Simplifying SAM polygons for CVAT...")
+
+simplified_dir = OUTPUT_DIR / "labels_simplified_for_cvat"
+simplified_dir.mkdir(exist_ok=True)
+
+for txt_file in auto_labelled_dir.glob("*.txt"):
+    lines_out = []
+    with open(txt_file, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            if not parts:
+                continue
+            cls_id = parts[0]
+            coordinates = [float(x) for x in parts[1:]]
+
+            clean_coords = simplify_polygon(coordinates, epsilon=0.002)
+
+            if len(clean_coords) >= 8:  # at least 4 real points + closing
+                lines_out.append(f"{cls_id} {' '.join(map(str, clean_coords))}")
+
+    if lines_out:
+        out_path = simplified_dir / txt_file.name
+        with open(out_path, "w") as f:
+            f.write("\n".join(lines_out) + "\n")
+
+logger.info(f'Completed Successfully: Check: {OUTPUT_DIR}')

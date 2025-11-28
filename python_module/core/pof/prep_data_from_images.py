@@ -1,12 +1,23 @@
-import os
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This script prepares dataset for training by gnn_trainer.py
+"""
+
+import sys
 import cv2
 from ultralytics import YOLO
 import logging
 from pathlib import Path
 import torch
 from torch_geometric.data import Data
-from core.utils import helpers as  utils
 from fuzzywuzzy import fuzz
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+from core.utils import helpers as  utils
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 logger = logging.getLogger(__name__)
@@ -53,15 +64,14 @@ def create_graph_from_image_data(nodes, edges, pof_id, down_id):
     )
 
 def main():
-    workspace = Path.cwd().parent / 'workspace'
+    workspace = Path(__file__).resolve().parent / 'workspace'
     images_dir = workspace / 'images'
     labels_dir = workspace / 'pof'
     processed_dir = workspace / 'processed'
-    os.makedirs(processed_dir, exist_ok=True)
-    os.makedirs(labels_dir, exist_ok=True)  # Ensure labels dir exists
+    processed_dir.mkdir(exist_ok=True)
+    labels_dir.mkdir(exist_ok=True)
 
-    cwd = os.getcwd()
-    model_file = os.path.join(cwd, 'models', 'YOLO','best.pt')
+    model_file = Path(PROJECT_ROOT, 'models', 'YOLO','best.pt')
     model = YOLO(model_file)
 
     image_files = list(images_dir.glob('*.png')) + list(images_dir.glob('*.jpg'))
@@ -91,7 +101,7 @@ def main():
             logger.error(f"Could not read image: {image_path}")
             continue
 
-        results = model.predict(source=image_path, save=False, show_labels=False, show_conf=False)
+        results = model.predict(source=image_path, save=False, show_labels=False, show_conf=False, device='cuda' if torch.cuda.is_available() else 'cpu')
         nodes, edges = utils.extract_data_from_YOLO(results, image_path)
         graph_data = create_graph_from_image_data(nodes, edges, pof_id, down_id)
 

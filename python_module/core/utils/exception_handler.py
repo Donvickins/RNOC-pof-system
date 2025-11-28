@@ -1,3 +1,9 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This contains exception classes used by the program to determine what gets sent to the client.
+"""
+
 class InvalidImageException(Exception):
     def __init__(self, details):
         self.details = details

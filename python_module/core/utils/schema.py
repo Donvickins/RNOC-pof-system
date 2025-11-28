@@ -1,3 +1,11 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This contains schemas the program uses to accept and respond to requests
+
+If the format is not in the schema described here the program will throw an error
+"""
+
 import base64
 import binascii
 import uuid

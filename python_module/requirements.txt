@@ -8,4 +8,4 @@ ultralytics
 celery[redis]
 fastapi
 uvicorn
-redis
+nuitka

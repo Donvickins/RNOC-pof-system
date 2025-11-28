@@ -1,3 +1,9 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This is the source code for the GNN. Do not modify till you understand what is going on here
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

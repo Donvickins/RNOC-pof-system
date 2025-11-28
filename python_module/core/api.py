@@ -1,3 +1,9 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This contains api routes for the application. New routes may be added if need be
+"""
+
 import sys
 import base64
 import binascii
@@ -67,6 +73,10 @@ async def check_pof(request: pofRequest):
         predicted_pof, accuracy = pof(image_bytes,request.site_id,yolo_model, gnn_model)
         accuracy = accuracy * 100
         accuracy = round(accuracy, 2)
+
+        image_path = save_dir / f'{request.order_id}.png'
+        with open(image_path, 'wb') as file:
+            file.write(image_bytes)
     except InvalidImageException:
         raise
     except SiteIdNotFoundInImage as e:
@@ -74,13 +84,6 @@ async def check_pof(request: pofRequest):
     except Exception as e:
         logger.error(f'Unexpected error occurred while processing order id: {request.order_id}. Reason: {e}')
         raise
-
-    try:
-        image_path = save_dir / f'{request.order_id}.png'
-        with open(image_path, 'wb') as file:
-            file.write(image_bytes)
-    except Exception as e:
-        logger.error(f'Failed to save image received from OWS. Reason: {e}')
 
     return pofResponse(site_id=request.site_id, pof=predicted_pof, certainty=accuracy, order_id=request.order_id)
 

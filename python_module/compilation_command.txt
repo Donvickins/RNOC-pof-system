@@ -1,0 +1,5 @@
+Development:
+nuitka --mode=standalone --clang --lto=no --jobs=4 --assume-yes-for-downloads --include-module=pytesseract --include-module=core.api --include-package-data=ultralytics --output-filename=RNOC_POF_AI.exe --windows-icon-from-ico=icon.png --enable-plugins=tk-inter App.py
+
+Production:
+nuitka --mode=standalone --clang --lto=yes --jobs=4 --assume-yes-for-downloads --include-module=pytesseract --include-module=core.api --include-package-data=ultralytics --output-filename=RNOC_POF_AI.exe --windows-icon-from-ico=icon.png --enable-plugins=tk-inter App.py

@@ -1,3 +1,15 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This script trains the GNN Model using dataset prepared by 'prep_data_from_images.py'
+
+The model will be saved to workspace/trained/run{num}
+
+This will save the models as best.pt and last.pt
+best.pt is the one that has the best metrics for model evaluation
+last.pt is the last saved checkpoint of the model
+"""
+
 import os
 import sys
 import logging
@@ -16,7 +28,10 @@ logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 SEED = 12345
 torch.manual_seed(SEED)
 
-workspace = Path.cwd().parent / 'workspace'
+FILE = Path(__file__).resolve()
+PROJECT_ROOT = FILE.parent
+
+workspace = PROJECT_ROOT/ 'workspace'
 def get_run_dir(base_dir: Union[str,Path] = workspace / 'trained'):
     """Creates a unique, numbered run directory for storing training artifacts."""
     base_dir = Path(base_dir)
@@ -118,10 +133,23 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
-    # Model Definition
+    # --- Model Definition & Data Validation ---
+    # Use the dynamic feature size from the first data point
     first_data = dataset[0]
+    expected_node_features = first_data.num_node_features
+    logger.info(f"Model will be configured for {expected_node_features} node features based on the first data sample.")
+
+    # Validate that all graphs in the dataset have the same number of node features
+    for i, data in enumerate(dataset):
+        if data.num_node_features != expected_node_features:
+            logger.error(f"Inconsistent number of node features found in dataset!")
+            logger.error(f"Graph {i} ({data.filename}) has {data.num_node_features} features, but model expects {expected_node_features}.")
+            logger.error("Please re-run data preparation to ensure all graphs have a consistent feature set.")
+            sys.exit(1)
+
+    # Model Definition
     model = GNN(
-        in_channels=first_data.num_node_features,  # 11 (4 type + 6 color + 1 is_down)
+        in_channels=expected_node_features,
         hidden_channels=128,
         num_edge_features=first_data.num_edge_features
     )

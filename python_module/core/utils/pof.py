@@ -1,3 +1,9 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This contains the business logic of the application. This is where the 3 models work together to achieve POF prediction
+"""
+
 import logging
 import sys
 import cv2
@@ -11,6 +17,8 @@ from core.utils.exception_handler import InvalidImageException, SiteIdNotFoundIn
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+NUM_NODE_FEATURES = 12  # 5 (type) + 6 (color)  + 1 (down_id)
 
 def prep_models(yolo_model_path, gnn_model_path):
     """
@@ -30,7 +38,7 @@ def prep_models(yolo_model_path, gnn_model_path):
 
         gnn_model = load_gnn_model( # from .pof.GNN.GModel import GNN
             model_path=gnn_model_path,
-            in_channels=11,  # 4 (type) + 6 (color + down_id)
+            in_channels=NUM_NODE_FEATURES,
             hidden_channels=128,
             num_edge_features=6  # Edge color features
         )

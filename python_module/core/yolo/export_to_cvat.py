@@ -1,13 +1,22 @@
+"""
+Author: Victor Chukwujekwu vwx1423235
+
+This script reads images and their corresponding labels, and classes.txt from workspace directory
+Creates a zip file, importable to cvat in new directory "export_to_cvat" inside workspace.
+"""
+
 import shutil
 import yaml
-from pathlib import Path
 import sys
 import logging
+from pathlib import Path
+sys.path.append(str(Path.cwd().parents[1]))
+from core.utils.helpers import copy_and_merge
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 logger = logging.getLogger(__name__)
 
-base_path = Path.cwd().parents[2]
+base_path = Path.cwd().parents[1]
 workspace = base_path / 'workspace'
 
 if not workspace.exists():
@@ -20,17 +29,6 @@ if not class_names.exists():
     logger.error(f"'classes.txt' file not found in {workspace}")
     sys.exit(1)
 
-def copy_and_merge(src, dst):
-    if not Path.exists(dst):
-        shutil.copy2(src, dst)
-    else:
-        for item in Path.iterdir(src):
-            src_path = Path(src) / item.name
-            dst_path = Path(dst) / item.name
-            if Path.is_dir(src_path):
-                copy_and_merge(src_path, dst_path)
-            else:
-                shutil.copy2(src_path, dst_path)
 
 save_dir = workspace / 'export_to_cvat'
 
