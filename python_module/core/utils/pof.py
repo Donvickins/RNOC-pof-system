@@ -106,7 +106,7 @@ def pof(image, down_id: str, yolo_model, gnn_model):
         raise InvalidImageException('Image is not valid')
 
     # Run YOLO model on the image
-    yolo_data = yolo_model.predict(source=image, save=False, verbose=False, device='cuda' if torch.cuda.is_available() else 'cpu')
+    yolo_data = yolo_model.predict(source=image, save=False, verbose=False, imgsz=800,device='cuda' if torch.cuda.is_available() else 'cpu')
     result = yolo_data[0]
 
     # b) class-wise counts

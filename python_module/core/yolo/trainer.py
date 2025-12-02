@@ -12,11 +12,9 @@ logger = logging.getLogger(__name__)
 
 # Define and parse user input arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--datapath', help='Path to data folder containing image and annotation files',
-                    required=True)
+parser.add_argument('--datapath', help='Path to data folder containing image and annotation files')
 parser.add_argument('--train-pct', help='Ratio of images to go to train folder; \
-                    the rest go to validation folder (example: "80")',
-                    default=85)
+                    the rest go to validation folder (example: "80")', default=98)
 parser.add_argument('--install-deps', help='Do you want to install requirements',choices=['yes', 'no'], default='yes')
 
 args = parser.parse_args()
@@ -25,11 +23,16 @@ data_path = args.datapath
 train_percentage = int(args.train_pct)
 install_deps = args.install_deps
 
-data_path = Path(data_path).resolve()
+workspace = Path.cwd() / 'workspace'
+
+if not data_path:
+    data_path = workspace
+else:
+    data_path = Path(data_path).resolve()
 
 # Check for valid entries
-if not os.path.isdir(data_path):
-   logger.error('Directory specified by --datapath not found. Verify the path is correct (and uses double back slashes if on Windows) and try again.')
+if not data_path.is_dir():
+   logger.error('Workspace directory not found')
    sys.exit(0)
 
 if 10 >= train_percentage <= 99:
@@ -47,12 +50,17 @@ if not input_image_path.exists() or not input_label_path.exists() or not input_c
     sys.exit(0)
 
 #Prep workspace for dependencies
-project_root = Path.cwd().parents[1]
+if data_path == workspace:
+    model_path = Path('model/best.pt')
+else:
+    project_root = Path.cwd().parents[1]
+    model_path = project_root / 'models/YOLO/best.pt'
+
 root_dir = Path.cwd()
 env_dir = root_dir / '.venv'
-model_path = project_root / 'models/YOLO/best.pt'
 
-if not Path.exists(model_path):
+
+if not model_path.exists():
     model_path = 'yolov8l-seg.pt'
 
 #Create new venv
@@ -88,7 +96,7 @@ if install_deps == 'yes':
     logger.info('Installing Dependencies...')
     command.run([venv_python, '-m', 'ensurepip', '--upgrade'])
     command.run([venv_python, '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'])
-    dep_install = command.run([venv_python, '-m', 'pip','install', 'ultralytics'])
+    dep_install = command.run([venv_python, '-m', 'pip','install', 'ultralytics', 'PyYAML'])
     if dep_install.returncode != 0:
         logger.error("Installation failed: Try again...")
         sys.exit(1)
@@ -98,11 +106,11 @@ img_file_list = [path for path in Path(input_image_path).rglob('*') if path.suff
 txt_file_list = [path for path in Path(input_label_path).rglob('*') if path.suffix.lower() == '.txt']
 
 if len(img_file_list) <= 0:
-    logger.error('No images files found in the directory...')
+    logger.warning('No images files found in the directory...')
     sys.exit(0)
 else:
-    logger.error(f'Number of image files: {len(img_file_list)}')
-    logger.error(f'Number of annotation files: {len(txt_file_list)}')
+    logger.info(f'Number of image files: {len(img_file_list)}')
+    logger.info(f'Number of annotation files: {len(txt_file_list)}')
 
 # Define paths to image and annotation folders
 workspace = data_path / 'training_data'
@@ -178,7 +186,8 @@ logger.info(f'Training Model {model_name} at: {model_path}')
 
 try:
     train = command.run([
-        yolo_exec, 'task=segment', 'mode=train', f'data={config_yaml}', f'model={model_path}', 'patience=100', 'epochs=200', 'imgsz=640'
+        'yolo', 'task=segment', 'mode=train', f'data={config_yaml}', f'model={model_path}', 'patience=100', 'epochs=200', 'imgsz=800',
+        'save=True', 'multi_scale=True', 'hsv_h=0.015', 'scale=0.5', 'fliplr=0.5', 'mosaic=0.5', 'copy_paste=0.5'
     ], text=True, check=True)
 except command.CalledProcessError as e:
     logger.error(f"Failed to train: {e}")

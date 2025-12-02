@@ -16,6 +16,10 @@ python_module/pof/workspace
 python_module/yolo/temp
 python_module/**/__*.py
 python_module/logs/
+python_module/**/*.pt
+python_module/**/*.build*
+python_module/**/*.dist*
+python_module/**/*test*
 .vscode/
 .venv
 .idea

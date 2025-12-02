@@ -41,7 +41,7 @@ if not input_image_path.exists() or not input_label_path.exists() or not input_c
 
 #Prep workspace for dependencies 
 root_dir = os.path.abspath(os.path.dirname(__file__))
-model_path = Path(root_dir) / 'model/best.pt'
+model_path = Path(root_dir) / 'runs/segment/train/weights/last.pt' #Path(root_dir) / 'model/best.pt'
 
 if not Path.exists(model_path):
     model_path = 'yolov8l-seg.pt'
@@ -94,10 +94,8 @@ for i, set_num in enumerate([number_of_files_to_train, number_of_validation_file
       new_img_path, new_txt_path = validation_img_path, validation_txt_path
 
     shutil.copy(img_path, os.path.join(new_img_path,img_fn))
-    #os.rename(img_path, os.path.join(new_img_path,img_fn))
     if os.path.exists(txt_path): # If txt path does not exist, this is a background image, so skip txt file
       shutil.copy(txt_path,os.path.join(new_txt_path,txt_fn))
-      #os.rename(txt_path,os.path.join(new_txt_path,txt_fn))
 
     img_file_list.remove(img_path)
 
@@ -133,9 +131,11 @@ model = Path(model_path)
 model_name = model.name
 print(f'Training Model {model_name} at: {model_path}')
 
+
 try:
     train = command.run([
-        'yolo', 'task=segment', 'mode=train', f'data={config_yaml}', f'model={model_path}', 'patience=100', 'epochs=200', 'imgsz=640'
+        'yolo', 'task=segment', 'mode=train', f'data={config_yaml}', f'model={model_path}', 'patience=100', 'epochs=200', 'imgsz=800',
+        'save=True', 'multi_scale=True', 'resume=True', 'hsv_h=0.015', 'scale=0.5', 'fliplr=0.5', 'mosaic=0.5'
     ], text=True, check=True)
 except command.CalledProcessError as e:
     print(f"Failed to train: {e}")

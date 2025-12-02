@@ -1,7 +1,7 @@
 """
 Author: Victor Chukwujekwu vwx1423235
 
-This strip auto annotates/label new images and prepares labels that may be imported to CVAT AI in preparation for supervised learning
+This script auto annotates/label new images and prepares labels that may be imported to CVAT AI in preparation for supervised learning
 and finetuning of YOLO model
 """
 
@@ -27,7 +27,9 @@ from ultralytics.data.annotator import auto_annotate
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 logger = logging.getLogger(__name__)
 
-WORKSPACE_DIR = BASE_DIR / 'workspace'
+LINE_CLASS_ID = [6,7,8,9,20]
+
+WORKSPACE_DIR = Path('workspace') if Path('workspace').exists() else BASE_DIR / 'workspace'
 IMAGE_DIR = WORKSPACE_DIR / 'images'
 OUTPUT_DIR = WORKSPACE_DIR / 'auto_labelled'
 MODEL_PATH = BASE_DIR / 'models' / 'YOLO' / 'best.pt'
@@ -101,12 +103,14 @@ for txt_file in auto_labelled_dir.glob("*.txt"):
             parts = line.strip().split()
             if not parts:
                 continue
-            cls_id = parts[0]
+            cls_id = int(parts[0])
             coordinates = [float(x) for x in parts[1:]]
 
-            clean_coords = simplify_polygon(coordinates, epsilon=0.002)
+            # Use aggressive simplification for lines, gentle for nodes
+            epsilon = 0.0003 if cls_id in LINE_CLASS_ID else 0.002
+            clean_coords = simplify_polygon(coordinates, epsilon=epsilon)
 
-            if len(clean_coords) >= 8:  # at least 4 real points + closing
+            if len(clean_coords) >= 6 and len(clean_coords) % 2 == 0:
                 lines_out.append(f"{cls_id} {' '.join(map(str, clean_coords))}")
 
     if lines_out:

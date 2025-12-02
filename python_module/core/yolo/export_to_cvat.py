@@ -10,7 +10,8 @@ import yaml
 import sys
 import logging
 from pathlib import Path
-sys.path.append(str(Path.cwd().parents[1]))
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 from core.utils.helpers import copy_and_merge
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')

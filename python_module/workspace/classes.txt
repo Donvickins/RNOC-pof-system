@@ -19,3 +19,9 @@ Switch_Red
 Switch_Orange
 Router_Orange
 Link_Orange
+HubSite_Yellow
+HubSite_Red
+HubSite_Green
+HubSite_Gray
+HubSite_Orange
+HubSite_Blue

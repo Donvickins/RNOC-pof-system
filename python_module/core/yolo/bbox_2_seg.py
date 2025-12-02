@@ -4,10 +4,21 @@ import os
 import logging
 from pathlib import Path
 
+FILE = Path(__file__).resolve()
+# Determine the base directory depending on whether the script is running as a standalone executable or from source
+if getattr(sys, 'frozen', False):
+    # If the application is run as a bundle/executable, the base dir is the executable's directory
+    BASE_DIR = Path(sys.executable).parent
+else:
+    # If running from source, the base dir is the project root (3 levels up from this script)
+    BASE_DIR = FILE.parents[2]
+    if str(BASE_DIR) not in sys.path:
+        sys.path.append(str(BASE_DIR))
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s]: %(message)s')
 
-workspace = Path.cwd().parents[1] / 'workspace' / 'merge'
+workspace = Path('workspace') / 'merge' if Path('workspace').exists() else BASE_DIR / 'workspace' / 'merge'
 bbox_dir = workspace / 'bbox_2_segment'
 images_dir = workspace / 'images'
 

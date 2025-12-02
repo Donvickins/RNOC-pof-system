@@ -101,7 +101,7 @@ def main():
             logger.error(f"Could not read image: {image_path}")
             continue
 
-        results = model.predict(source=image_path, save=False, show_labels=False, show_conf=False, device='cuda' if torch.cuda.is_available() else 'cpu')
+        results = model.predict(source=image_path, save=False, show_labels=False, show_conf=False, imgsz=800,device='cuda' if torch.cuda.is_available() else 'cpu')
         nodes, edges = utils.extract_data_from_YOLO(results, image_path)
         graph_data = create_graph_from_image_data(nodes, edges, pof_id, down_id)
 
