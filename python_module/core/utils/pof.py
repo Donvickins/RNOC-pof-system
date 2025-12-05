@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 NUM_NODE_FEATURES = 12  # 5 (type) + 6 (color)  + 1 (down_id)
 CONF_LEVEL = 0.1
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-IMGSZ = 1024
+IMGSZ = 1280
 FUZZY_PERCENTAGE = 70
 
 def prep_models(yolo_model_path, gnn_model_path) -> Tuple[YOLO, GNN]:

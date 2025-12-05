@@ -5,8 +5,6 @@ torch_geometric
 fuzzywuzzy
 python-Levenshtein
 ultralytics
-celery[redis]
 fastapi
 uvicorn
-nuitka
-playwright
+#nuitka
