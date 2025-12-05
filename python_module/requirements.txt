@@ -9,3 +9,4 @@ celery[redis]
 fastapi
 uvicorn
 nuitka
+playwright

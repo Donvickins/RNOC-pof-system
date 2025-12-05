@@ -3,7 +3,6 @@ Author: Victor Chukwujekwu vwx1423235
 
 This contains all utility functions necessary to run the app
 """
-
 import pytesseract
 import logging
 import cv2
@@ -12,7 +11,7 @@ import torch
 import shutil
 import numpy as np
 from scipy.spatial.distance import cdist
-from typing import Union
+from typing import Union, Tuple
 from pathlib import Path
 from fuzzywuzzy import fuzz
 from core.utils.exception_handler import InvalidImageException
@@ -62,18 +61,18 @@ def extract_text(img) -> str | None:
         return None
 
 
-def site_id_2_binary(img):
+def site_id_2_binary(img) -> Union[np.ndarray, None]:
     """
     This converts an image into black and white color, processes the image to be used for OCR
 
     :param
         img: This is an OpenCV image
     :return:
-        cv2.Mat: This is the binary form of the input image
+        np.ndarray | None: This is the binary form of the input image
     """
     if img is None:
-        logger.error("Image is empty")
-        raise InvalidImageException("Image is empty")
+        logger.error("Invalid Site Id Image")
+        return None
 
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     lower = np.array([0, 38, 120])
@@ -90,7 +89,7 @@ def get_site_id_from_image(image_path: Union[str, Path, np.ndarray], node_bbox) 
         node_bbox (list): Bounding box of the detected node in the format [x_min, y_min, x_max, y_max].
 
     Returns:
-        str | Image | None : The Site ID from the image or String 'out of bounds' if its out of bounds of image, or None if image does not exist or is invalid.
+        np.ndarray | None : The Site ID from the image or String 'out of bounds' if its out of bounds of image, or None if image does not exist or is invalid.
     """
     # Load the image
     img = None
@@ -153,12 +152,19 @@ def get_site_id_from_node(image_path: Union[str, Path, np.ndarray], node_bbox) -
 
     site_id_binary_image = site_id_2_binary(site_id_image)
     txt = extract_text(site_id_binary_image)
-
-    if txt is None:
-        raise InvalidImageException('Invalid image from OCR extraction')
     return txt
 
 def get_class_name(result, c_id) -> str | None:
+    """
+    Returns class name for any given valid class id
+
+    Args:
+        result (List): YOLO model result
+        c_id (int): class id
+
+    Returns:
+        str | None: class name if it exists or None if it doesn't exist
+    """
     for i, c_name in result.names.items():
         if int(c_id) == i:
             return c_name
@@ -166,6 +172,15 @@ def get_class_name(result, c_id) -> str | None:
 
 
 def create_node_tensor(nodes: list, down_id: str = None) -> dict:
+    """
+    Create a node features, node centers and node ids from YOLO Detections
+
+    Args:
+        nodes (List): List of nodes detected by YOLO from the topology image
+        down_id (str): Site Id of the faulty site
+    Returns:
+        dict: Dictionary containing node features, node centers, and node ids
+    """
     if not nodes:
         logger.info('No nodes found, cannot create a graph.')
         raise InvalidImageException('No nodes found in image')
@@ -175,7 +190,7 @@ def create_node_tensor(nodes: list, down_id: str = None) -> dict:
     node_ids = []
     for node in nodes:
         feature = TYPE_MAP.get(node['type']) + COLOR_MAP.get(node['color'])
-        is_down = 1 if down_id and fuzz.ratio(down_id, node['id']) >= 80 else 0
+        is_down = 1 if down_id and fuzz.ratio(down_id, node['id']) >= 70 else 0
         feature.append(is_down)
         node_centers.append(node['center'])
         node_ids.append(node['id'])
@@ -192,6 +207,15 @@ def create_node_tensor(nodes: list, down_id: str = None) -> dict:
 
 
 def create_edges_tensor(edges: list, node_centers: list) -> dict:
+    """
+    Creates edges tensors (connective lines in the topology images)
+
+    Args:
+        edges (List): List of connective lines or edges found in the topology image
+        node_centers (List): List of node centers found in the topology image
+    Returns:
+        dict: Dictionary containing edge index (connective lines in topology image) and edge attributes
+    """
     if len(node_centers) == 0:
         logger.warning("No node centers provided, cannot create edges.")
         return {
@@ -240,7 +264,17 @@ def create_edges_tensor(edges: list, node_centers: list) -> dict:
         'edge_attr': edge_attr
     }
 
-def extract_data_from_YOLO(result: list, img: Union[str, Path]) -> list:
+def extract_data_from_YOLO(result: list, img: Union[str, Path, np.ndarray]) -> list:
+    """
+    Extracts detection data from YOLO model
+
+    Args:
+        result (list): Detections result from YOLO model
+        img (str | Path | np.ndarray): Path to or binary image
+
+    Returns:
+         list: List of nodes and edges extracted from the image
+    """
 
     if len(result) == 0 and not img:
         logger.info('Result and image cannot be empty')
@@ -261,7 +295,7 @@ def extract_data_from_YOLO(result: list, img: Union[str, Path]) -> list:
             x_min, y_min, x_max, y_max = boxes.xyxy[key].cpu().detach().numpy().tolist()
             edge = {'color': color, 'endpoints': [(x_min, y_min), (x_max, y_max)]}
             edges.append(edge)
-        elif any(class_name.startswith(p) for p in ['ATN', 'RTN', 'Router', 'Switch', 'HubSite']):
+        elif any(class_name.startswith(p) for p in NODE_TYPE):
             node_type = class_name.split('_')[0]
             site_id = get_site_id_from_node(image_path=img, node_bbox=bbox)
             if site_id == 'invalid' or not site_id:

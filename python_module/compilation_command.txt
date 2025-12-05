@@ -1,5 +1,1 @@
-Development:
-nuitka --mode=standalone --clang --lto=no --jobs=4 --assume-yes-for-downloads --include-module=pytesseract --include-module=core.api --include-package-data=ultralytics --output-filename=RNOC_POF_AI.exe --windows-icon-from-ico=icon.png --enable-plugins=tk-inter App.py
-
-Production:
-nuitka --mode=standalone --clang --lto=yes --jobs=4 --assume-yes-for-downloads --include-module=pytesseract --include-module=core.api --include-package-data=ultralytics --output-filename=RNOC_POF_AI.exe --windows-icon-from-ico=icon.png --enable-plugins=tk-inter App.py
+nuitka App.py --mode=onefile --lto=no --mingw64 --assume-yes-for-downloads --enable-plugins=tk-inter --python-flag=no_asserts --python-flag=no_docstrings --include-module=pytesseract --include-module=core.api --noinclude-data-files=ultralytics/assets/* --noinclude-data-files=ultralytics/data/* --noinclude-data-files=ultralytics/hub/* --noinclude-data-files=ultralytics/models/hub/* --noinclude-data-files=ultralytics/utils/callbacks/* --include-data-files="C:\Users\Elite\miniconda3\envs\yolo_env\Lib\site-packages\ultralytics\cfg\*.yaml=ultralytics/cfg/" --output-filename=RNOC_POF.exe --windows-icon-from-ico=icon.png
