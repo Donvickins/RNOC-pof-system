@@ -270,16 +270,6 @@ pyinstaller --onefile automation/automation_tool.py
 
 ---
 
-## 🧠 Future Improvements
-
-* Expand YOLO UI detection classes
-* Add reinforcement learning for adaptive workflows
-* CAPTCHA solvers
-* Larger NLP models (e.g., BERT)
-* GUI task builder for `tasks.json`
-
----
-
 ## 📜 License
 
 MIT License
@@ -289,12 +279,6 @@ MIT License
 ## 🤝 Contributing
 
 Open issues or submit pull requests on GitHub.
-
----
-
-## 📬 Contact
-
-For support, [create an issue](https://github.com/moses000/AIDesktopMentor/issues) or email [im.imoleayomoses@gmail.com](mailto:im.imoleayomoses@gmail.com)
 
 ---
 
