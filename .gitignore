@@ -1,6 +1,5 @@
 cpp_module/vcpkg_installed/
 cpp_module/build/
-cpp_module/models/yolo/yolov8l.onnx
 cpp_module/*.exe
 cpp_module/**/*test*.cpp
 cpp_module/screenshots
