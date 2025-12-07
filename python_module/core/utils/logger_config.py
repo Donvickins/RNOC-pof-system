@@ -9,6 +9,7 @@ from pathlib import Path
 
 logs_dir = Path('logs').resolve()
 log_file = logs_dir / 'app.log'
+error_log_file = logs_dir / 'error.log'
 
 if not logs_dir.exists():
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -41,11 +42,19 @@ LOG_CONFIG = {
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
         },
+        "error_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "ERROR",
+            "formatter": "default",
+            "filename": str(error_log_file),
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 5,
+        },
     },
     "loggers": {
         "": {  # root logger
             "level": "INFO",
-            "handlers": ["console", "file"],
+            "handlers": ["console", "file", "error_file"],
             "propagate": False,
         },
         "uvicorn": {

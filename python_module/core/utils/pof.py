@@ -147,7 +147,7 @@ def pof(image, down_id: str, yolo_model, gnn_model) -> Tuple[str, float]:
     yolo_data = yolo_model.predict(source=image, save=False, conf=CONF_LEVEL, verbose=False, imgsz=IMGSZ,device=DEVICE)
     result = yolo_data[0]
 
-    # b) class-wise counts
+    # class-wise counts
     cls_names = result.names
     cls_ids   = result.boxes.cls.int().cpu().tolist()
     counts = {}
@@ -173,11 +173,11 @@ def pof(image, down_id: str, yolo_model, gnn_model) -> Tuple[str, float]:
     # Validate graph
     if len(node_data['node_ids']) == 0:
         logger.error('No valid nodes extracted from image')
-        raise ValueError('No valid nodes extracted from image')
+        raise InvalidImageException('No valid nodes extracted from image')
 
     if not isinstance(edge_data['edge_index'], torch.Tensor) or edge_data['edge_index'].shape[0] != 2:
         logger.error(f'Invalid edge_index: {edge_data["edge_index"]}')
-        raise ValueError('Invalid edge index')
+        raise InvalidImageException('Invalid edge index')
 
     if edge_data['edge_index'].size(1) == 0:
         logger.warning('No valid edges detected in the graph, proceeding with isolated nodes.')
@@ -188,9 +188,6 @@ def pof(image, down_id: str, yolo_model, gnn_model) -> Tuple[str, float]:
         score = fuzz.ratio(down_id, id)
         if score >= FUZZY_PERCENTAGE:
             matches.append({'score': score, 'id': id})
-
-    # logger.info(f'Detected Nodes: {node_data["node_ids"]}')
-    # logger.info(f'Matches for down_id "{down_id}": {matches}')
 
     if len(matches) == 0:
         logger.error(f'Site down with ID: "{down_id}" not found in image')
