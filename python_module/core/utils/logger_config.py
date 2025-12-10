@@ -28,6 +28,11 @@ LOG_CONFIG = {
             "use_colors": True,
         },
     },
+    "filters": {
+        "max_info_warning": {
+            "()": "logging.Filter",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
@@ -59,17 +64,17 @@ LOG_CONFIG = {
         },
         "uvicorn": {
             "level": "INFO",
-            "handlers": ["console", "file"],
+            "handlers": ["console", "file", "error_file"],
             "propagate": False,
         },
         "uvicorn.error": {
             "level": "INFO",
-            "handlers": ["console", "file"],
+            "handlers": ["console", "file", "error_file"],
             "propagate": False,
         },
         "uvicorn.access": {
             "level": "INFO",
-            "handlers": ["console", "file"],
+            "handlers": ["console", "file", "error_file"],
             "propagate": False,
         },
     },

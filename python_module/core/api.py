@@ -3,10 +3,13 @@ Author: Victor Chukwujekwu vwx1423235
 
 This contains api routes for the application. New routes may be added if need be
 """
+import logging
+logger = logging.getLogger(__name__)
+logger.info('Loading modules...')
+
 import sys
 import base64
 import binascii
-import logging
 from fastapi import FastAPI, status, Request
 from core.utils.schema import Request as pofRequest, Response as pofResponse
 from fastapi.responses import JSONResponse
@@ -17,7 +20,7 @@ from core.pof.GNN.GModel import GNN
 from ultralytics import YOLO
 from core.utils.exception_handler import InvalidImageException, SiteIdNotFoundInImage, NoSiteId
 
-logger = logging.getLogger(__name__)
+logger.info('Modules loaded successfully')
 
 app = FastAPI()
 
@@ -95,13 +98,9 @@ async def check_pof(request: pofRequest):
                 file.write(image_bytes)
         except Exception as e:
             logger.error(f'Failed to save image for order id: {request.order_id}. Reason: {e}')
-    except InvalidImageException:
-        raise
-    except SiteIdNotFoundInImage as e:
-        raise
     except Exception as e:
         logger.error(f'Unexpected error occurred while processing order id: {request.order_id}. Reason: {e}')
-        raise
+        raise e
 
     return pofResponse(site_id=request.site_id, pof=predicted_pof, certainty=accuracy, order_id=request.order_id)
 

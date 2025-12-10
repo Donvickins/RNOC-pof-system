@@ -7,4 +7,4 @@ python-Levenshtein
 ultralytics
 fastapi
 uvicorn
-#nuitka
+nuitka

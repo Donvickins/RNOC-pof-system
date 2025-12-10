@@ -11,7 +11,7 @@ import torch
 import shutil
 import numpy as np
 from scipy.spatial.distance import cdist
-from typing import Union, Tuple
+from typing import Union
 from pathlib import Path
 from fuzzywuzzy import fuzz
 from core.utils.exception_handler import InvalidImageException
@@ -22,6 +22,27 @@ logger = logging.getLogger(__name__)
 TYPE_MAP = {node_type: [1 if i == j else 0 for i in range(len(NODE_TYPE))] for j, node_type in enumerate(NODE_TYPE)}
 
 MAX_DIST_THRESH = 50
+
+def get_base_path() -> Path:
+    """
+    Determines the base path of the application, whether running as a script or a frozen executable.
+    This is crucial for locating bundled resources like Tesseract.
+    """
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parents[2]
+
+# --- Tesseract Configuration ---
+# Use a bundled Tesseract executable if available, otherwise fall back to system PATH.
+# This ensures the custom model 'pof_ocr' is found in the bundled 'tessdata' directory.
+
+base_path = get_base_path()
+tesseract_path = base_path / "tesseract" / "tesseract.exe"
+
+if tesseract_path.is_file():
+    pytesseract.pytesseract.tesseract_cmd = str(tesseract_path)
+else:
+    logger.warning(f"Bundled Tesseract not found at '{tesseract_path}'. Falling back to system PATH.")
 
 def extract_text(img) -> str | None:
     """
@@ -56,9 +77,10 @@ def extract_text(img) -> str | None:
             return id
         else:
             return 'invalid'
+
     except pytesseract.TesseractNotFoundError:
         logger.error("Tesseract is not installed or not in your PATH. Please install it.")
-        return None
+        raise
 
 
 def site_id_2_binary(img) -> Union[np.ndarray, None]:

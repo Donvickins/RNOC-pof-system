@@ -1,6 +1,5 @@
-# AI Desktop Mentor
-
-AI Desktop Mentor is an advanced Python-based desktop automation tool designed to emulate human-like interactions with a computer system. It leverages cutting-edge AI technologies, including **YOLOv8** for UI element detection, **Vosk** for offline speech recognition, and **DistilBERT** for natural language processing (NLP), to perform tasks such as opening applications, navigating websites, logging in, and processing screenshots. With a **Tkinter GUI**, it supports voice commands, task scripting, and automated workflows—ideal for business automation and personal productivity.
+# RNOC POF(Point of Failure) Detection SYSTEM
+#### it's an advanced Python-based desktop automation tool designed to detect and predict point of failure in network topology image. Using Computer Vision (YOLOv8 instance segmentation), Optical Character Recognition using tesseract, and Graph Convoluted Network.
 
 ---
 
@@ -46,50 +45,9 @@ AIDesktopMentor/
 ````
 
 
-## 🔁 Technical Workflow
 
-```mermaid
-graph TD
-    A[User Input] --> B[GUI Tkinter]
-    A --> C[Voice Listener Vosk]
-    C --> D[NLP Parser DistilBERT]
-    D --> E[Command Processor]
-    B --> E
-    E --> F[Automation Engine PyAutoGUI]
-    E --> G[UI Detection YOLOv8]
-    E --> H[Screenshot Module]
-    E --> I[OCR Pytesseract]
-    E --> J[Check Popups]
-    F --> K[OS Interaction]
-    H --> L[Save to screenshots/]
-    I --> M[Context Feedback]
-    K --> N[Screen Output]
-    M --> N
-```
 
-## 📊 Business Workflow
-
-```mermaid
-graph TD
-    A[Business User] --> B[Define Task]
-    B -->|Manual| C[GUI Interaction]
-    B -->|Automated| D[Configure tasks.json]
-    B -->|Voice| E[Voice Command]
-    C --> F[Execute Task]
-    D --> F
-    E --> F
-    F -->|Open App| G[Access System]
-    F -->|Login| H[Authenticate]
-    F -->|Navigate| I[Access Resource]
-    F -->|Screenshot| J[Generate Report]
-    H -->|YOLO Detection| I
-    I --> K[Perform Business Function]
-    J --> L[Save Output]
-    K --> M[Business Outcome]
-    L --> M
-```
-
-## ✅ Prerequisites
+## ✅ Requirements
 
 * Python **3.8+**
 * Tesseract OCR
@@ -97,10 +55,7 @@ graph TD
   * Windows: [Install](https://github.com/tesseract-ocr/tesseract/wiki)
   * macOS: `brew install tesseract`
   * Linux: `sudo apt-get install tesseract-ocr`
-* Vosk Model
 
-  * [Download](https://alphacephei.com/vosk/models) `vosk-model-small-en-us`
-  * Extract into `models/vosk-model-small-en-us/`
 * YOLO Model
 
   * Use `yolov8n.pt` or custom-trained model saved as `yolo_ui_model.pt`
